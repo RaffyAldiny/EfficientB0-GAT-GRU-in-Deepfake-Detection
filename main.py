@@ -1,4 +1,3 @@
-# main.py
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -9,6 +8,7 @@ from models.gat import GAT
 from models.gru import GRU
 from utils.preprocess import preprocess_dataset
 from utils.dataset import DeepfakeDataset
+from utils.losses import CombinedLoss
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 from sklearn.utils import class_weight
 import os
@@ -16,9 +16,9 @@ import time
 from tqdm import tqdm
 import random
 import numpy as np
-import math
 
 def set_seed(seed=42):
+    """Set the random seed for reproducibility."""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -26,47 +26,22 @@ def set_seed(seed=42):
         torch.cuda.manual_seed_all(seed)
 
 set_seed(42)
-
-# Detect device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
-# Jensen-Shannon Divergence for binary classification
-def jensen_shannon_divergence(pred_probs, true_labels, epsilon=1e-8):
-    """
-    Computes the Jensen-Shannon Divergence between predicted probabilities and true labels.
-    pred_probs: Tensor of shape (N,) with predicted probability of class=1
-    true_labels: Tensor of shape (N,) with ground truth labels in {0,1}
-
-    We consider distributions:
-    P = [1 - y, y]
-    Q = [1 - p, p]
-    M = (P + Q) / 2
-
-    JS(P||Q) = 0.5 * (KL(P||M) + KL(Q||M))
-
-    KL(A||B) = sum over i: A[i]*log(A[i]/B[i])
-    """
-    # Convert scalar labels to distributions: P and Q
-    # P for true distribution: if y=1, P=[0,1], if y=0, P=[1,0]
-    P = torch.stack([1 - true_labels, true_labels], dim=1)
-    Q = torch.stack([1 - pred_probs, pred_probs], dim=1)
-
-    M = 0.5 * (P + Q)
-
-    # Compute KL divergences
-    # Add epsilon to avoid log(0)
-    P = P + epsilon
-    Q = Q + epsilon
-    M = M + epsilon
-
-    KL_PM = torch.sum(P * torch.log(P / M), dim=1)
-    KL_QM = torch.sum(Q * torch.log(Q / M), dim=1)
-
-    JS = 0.5 * (KL_PM + KL_QM)
-    return JS.mean()
-
 def create_batched_edge_index(edge_index, batch_size, num_nodes, device):
+    """
+    Create a batched edge index for the graph attention network.
+
+    Args:
+        edge_index (torch.Tensor): Original edge index.
+        batch_size (int): Number of samples in a batch.
+        num_nodes (int): Number of nodes per graph.
+        device (torch.device): Device to place the tensor on.
+
+    Returns:
+        torch.Tensor: Batched edge index.
+    """
     edge_index = edge_index.clone()
     edge_index = edge_index.repeat(1, batch_size)
     offsets = torch.arange(batch_size, device=device) * num_nodes
@@ -75,21 +50,22 @@ def create_batched_edge_index(edge_index, batch_size, num_nodes, device):
     return edge_index
 
 class DeepfakeModel(nn.Module):
+    """Deepfake Detection Model combining EfficientNet, GAT, and GRU."""
+
     def __init__(self, seq_len=100, dropout_rate=0.5):
         super(DeepfakeModel, self).__init__()
         self.seq_len = seq_len
         self.efficientnet = get_efficientnet()
         self.gat = GAT(in_channels=1280, out_channels=8, heads=1)  
-        self.gru = GRU(input_size=8, hidden_size=32, num_layers=1, dropout=dropout_rate)# Output: 8
+        self.gru = GRU(input_size=8, hidden_size=32, num_layers=1, dropout=dropout_rate)
         self.fc = nn.Linear(32, 1)
 
-    def forward(self, x, edge_index, batch_size, num_nodes):
+    def forward(self, x, batched_edge_index):
         batch_size, seq_len, c, h, w = x.shape
         x = x.view(batch_size * seq_len, c, h, w)
         spatial_features = self.efficientnet(x).squeeze(-1).squeeze(-1)
         node_features = spatial_features
 
-        batched_edge_index = create_batched_edge_index(edge_index, batch_size, num_nodes, x.device)
         gat_output = self.gat(node_features, batched_edge_index)  
         gat_output = gat_output.view(batch_size, seq_len, -1)
 
@@ -97,29 +73,8 @@ class DeepfakeModel(nn.Module):
         output = self.fc(gru_output[:, -1, :])
         return output
 
-class CombinedLoss(nn.Module):
-    def __init__(self, bce_weight=0.5, jsd_weight=0.5, pos_weight=None):
-        super(CombinedLoss, self).__init__()
-        self.bce_weight = bce_weight
-        self.jsd_weight = jsd_weight
-        if pos_weight is not None:
-            self.bce_loss = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-        else:
-            self.bce_loss = nn.BCEWithLogitsLoss()
-
-    def forward(self, logits, labels):
-        # BCE Loss
-        bce = self.bce_loss(logits, labels)
-
-        # Convert logits to probabilities for JSD
-        probs = torch.sigmoid(logits)
-        jsd = jensen_shannon_divergence(probs, labels)
-
-        # Weighted sum
-        loss = self.bce_weight * bce + self.jsd_weight * jsd
-        return loss
-
-def train_epoch(model, dataloader, criterion, optimizer, device, edge_index, num_nodes, grad_clip=5.0):
+def train_epoch(model, dataloader, criterion, optimizer, device, batched_edge_index, grad_clip=5.0):
+    """Train the model for one epoch."""
     model.train()
     epoch_loss = 0.0
     all_labels = []
@@ -131,7 +86,7 @@ def train_epoch(model, dataloader, criterion, optimizer, device, edge_index, num
             inputs, labels = inputs.to(device), labels.to(device)
 
             optimizer.zero_grad()
-            outputs = model(inputs, edge_index, inputs.size(0), num_nodes)
+            outputs = model(inputs, batched_edge_index)
             outputs = outputs.view(-1)
             labels = labels.float().view(-1)
 
@@ -140,7 +95,6 @@ def train_epoch(model, dataloader, criterion, optimizer, device, edge_index, num
 
             # Gradient Clipping
             torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-
             optimizer.step()
 
             epoch_loss += loss.item()
@@ -160,7 +114,8 @@ def train_epoch(model, dataloader, criterion, optimizer, device, edge_index, num
     f1 = f1_score(all_labels, all_preds) if len(set(all_labels)) > 1 else 0.0
     return average_loss, accuracy, auc, f1
 
-def evaluate_model(model, dataloader, criterion, device, edge_index, num_nodes):
+def evaluate_model(model, dataloader, criterion, device, batched_edge_index):
+    """Evaluate the model."""
     model.eval()
     epoch_loss = 0.0
     all_labels = []
@@ -172,7 +127,7 @@ def evaluate_model(model, dataloader, criterion, device, edge_index, num_nodes):
             for inputs, labels in dataloader:
                 inputs, labels = inputs.to(device), labels.to(device)
 
-                outputs = model(inputs, edge_index, inputs.size(0), num_nodes)
+                outputs = model(inputs, batched_edge_index)
                 outputs = outputs.view(-1)
                 labels = labels.float().view(-1)
 
@@ -197,7 +152,8 @@ def evaluate_model(model, dataloader, criterion, device, edge_index, num_nodes):
     return average_loss, accuracy, auc, f1
 
 def main():
-    # Check if preprocessed data exists to avoid reprocessing
+    """Main function to train and evaluate the deepfake detection model."""
+    # If data isn't preprocessed, run preprocessing
     preprocessed_dir = "data/preprocessed/"
     if not os.path.exists(preprocessed_dir) or len(os.listdir(preprocessed_dir)) == 0:
         print("Starting preprocessing...")
@@ -228,11 +184,12 @@ def main():
         print(f"Error: Labels file not found at {labels_file}")
         return
 
+    # The DeepfakeDataset class handles padding shorter sequences
     dataset = DeepfakeDataset(
         root_dir="data/preprocessed/",
         labels_file=labels_file,
         transform=transform,
-        limit=50,     # Adjust limit as needed
+        limit=2000,  # Adjust limit as needed
         seq_len=seq_len
     )
 
@@ -247,43 +204,64 @@ def main():
     class_counts = dict(zip(unique.tolist(), counts.tolist()))
     print(f"Class distribution: {class_counts}")
 
-    # Compute class weights for binary classification
     pos_weight = None
     if len(class_counts) == 2:
-        classes = list(class_counts.keys())
-        counts_list = list(class_counts.values())
-        class_weights = class_weight.compute_class_weight('balanced', classes=classes, y=labels)
+        classes = np.array(list(class_counts.keys()))  # Convert to numpy array
+        labels_np = np.array(labels)  # Convert labels to numpy array
+        class_weights = class_weight.compute_class_weight('balanced', classes=classes, y=labels_np)
         class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
         pos_weight = class_weights[1] / (class_weights[0] if class_weights[0] != 0 else 1.0)
         print(f"Class Weights: {class_weights.tolist()} | Pos Weight: {pos_weight:.4f}")
     else:
         print("Not a binary classification scenario or class count issue. Using default weights.")
 
-    # Create combined loss with BCE and JSD
-    # Weighted 0.5 each as per your requirement
-    criterion = CombinedLoss(bce_weight=0.5, jsd_weight=0.5, pos_weight=(torch.tensor(pos_weight).to(device) if pos_weight is not None else None))
+    criterion = CombinedLoss(
+        bce_weight=0.5, 
+        jsd_weight=0.5, 
+        pos_weight=(torch.tensor(pos_weight).to(device) if pos_weight is not None else None)
+    )
 
-    # Train/test split
-    test_split = 0.2
+    test_split = 0.3
     test_size = int(len(dataset) * test_split)
     train_size = len(dataset) - test_size
     train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
 
-    # Adjust batch size
-    batch_size = 2  # If resources allow, you can increase this
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2, pin_memory=False)
-    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=False)
+    batch_size = 9
+    train_dataloader = DataLoader(
+        train_dataset, 
+        batch_size=batch_size, 
+        shuffle=True, 
+        num_workers=2, 
+        pin_memory=False, 
+        drop_last=True
+    )
+    test_dataloader = DataLoader(
+        test_dataset, 
+        batch_size=batch_size, 
+        shuffle=False, 
+        num_workers=2, 
+        pin_memory=False, 
+        drop_last=True
+    )
 
     # Create chain graph for seq_len nodes
-    num_nodes = seq_len
     edge_list = []
-    for i in range(num_nodes - 1):
+    for i in range(seq_len - 1):
         edge_list.append([i, i + 1])
         edge_list.append([i + 1, i])
     edge_index = torch.tensor(edge_list, dtype=torch.long).t().contiguous().to(device)
 
+    # Precompute batched_edge_index once
+    batched_edge_index = create_batched_edge_index(edge_index, batch_size, seq_len, device)
+
     optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-5)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=3, verbose=True)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, 
+        mode='max', 
+        factor=0.5, 
+        patience=3, 
+        verbose=True
+    )
 
     num_epochs = 3
     best_auc = 0.0
@@ -292,10 +270,10 @@ def main():
     for epoch in range(num_epochs):
         start_time = time.time()
         train_loss, train_acc, train_auc, train_f1 = train_epoch(
-            model, train_dataloader, criterion, optimizer, device, edge_index, num_nodes, grad_clip=5.0
+            model, train_dataloader, criterion, optimizer, device, batched_edge_index, grad_clip=5.0
         )
         val_loss, val_acc, val_auc, val_f1 = evaluate_model(
-            model, test_dataloader, criterion, device, edge_index, num_nodes
+            model, test_dataloader, criterion, device, batched_edge_index
         )
 
         scheduler.step(val_auc)
@@ -316,7 +294,6 @@ def main():
     os.makedirs("outputs", exist_ok=True)
     torch.save(model.state_dict(), "outputs/deepfake_model_final.pth")
     print("Model saved at outputs/deepfake_model_final.pth")
-
 
 if __name__ == "__main__":
     main()
