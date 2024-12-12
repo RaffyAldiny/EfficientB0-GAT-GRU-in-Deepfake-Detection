@@ -1,8 +1,8 @@
 # Ignore contents of data/ and notebooks/ but not the directories themselves
 data/*
 notebooks/*
-!data/
-!notebooks/
+!data/README.txt
+!notebooks/README.txt
 
 # Ignore virtual environment
 venv/
