@@ -1,0 +1,15 @@
+# Ignore data and notebook directories
+data/
+notebooks/
+
+# Ignore virtual environment
+venv/
+
+# Ignore common system files
+.DS_Store
+Thumbs.db
+
+# Ignore Python cache and logs
+__pycache__/
+*.py[cod]
+*.log
