@@ -404,7 +404,12 @@ def main():
             'Epoch Time': epoch_time  # Duration of the epoch in seconds
         }
 
-        save_model_and_result(model, results, model_path=f"outputs/models/epoch-{epoch}-model.pth", results=f"outputs/results/epoch-{epoch}-model.json")
+        save_model_and_result(
+            model, 
+            results, 
+            model_path=f"outputs/models/epoch-{epoch}-model.pth", 
+            results_path=f"outputs/results/epoch-{epoch}-model.json"
+        )
 
         print(f"\nEpoch {epoch+1}/{num_epochs} Summary:")
         print(f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.4f} | Train AUC: {train_auc:.4f} | Train F1: {train_f1:.4f} | Train Recall: {train_recall:.4f} | Train FRR: {train_frr:.4f} | Train GAR: {train_gar:.4f} | Train Precision: {train_precision:.4f}")
