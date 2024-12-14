@@ -1,4 +1,3 @@
-# utils/dataset.py
 import torch
 from torch.utils.data import Dataset
 import os
@@ -7,21 +6,36 @@ from torchvision.transforms import ToTensor
 import random
 
 class DeepfakeDataset(Dataset):
-    def __init__(self, root_dir, labels_file, transform=None, limit=None, seq_len=100):
+    def __init__(self, root_dir, video_list, labels_dict, transform=None, limit=None, seq_len=100):
+        """
+        Args:
+            root_dir (str): The directory where preprocessed video frames are stored.
+            video_list (list): List of video relative paths, e.g. ["Celeb-real/id13_0005", "Celeb-synthesis/id48_id40_0006"].
+            labels_dict (dict): Dictionary mapping video relative paths to labels (0 or 1).
+            transform (callable, optional): A function/transform to apply to the frames.
+            limit (int, optional): Limit the number of samples to use.
+            seq_len (int): Number of frames to sample per video.
+        """
         self.root_dir = root_dir
         self.transform = transform if transform else ToTensor()
-        self.labels = self._load_labels(labels_file)
         self.seq_len = seq_len
 
-        # Filter out invalid samples
+        # Prepare the dataset entries
         valid_labels = []
         skipped = 0
-        for label, rel_path in self.labels:
-            video_folder = os.path.join(self.root_dir, os.path.splitext(rel_path)[0])
+
+        for vid in video_list:
+            if vid not in labels_dict:
+                print(f"Warning: {vid} not in labels_dict, skipping.")
+                skipped += 1
+                continue
+
+            label = labels_dict[vid]
+            video_folder = os.path.join(self.root_dir, os.path.splitext(vid)[0])
             if os.path.exists(video_folder):
                 frame_files = sorted([f for f in os.listdir(video_folder) if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
                 if len(frame_files) >= 1:
-                    valid_labels.append((label, rel_path, len(frame_files)))
+                    valid_labels.append((label, vid, len(frame_files)))
                 else:
                     print(f"Warning: No frames found in folder, skipping: {video_folder}")
                     skipped += 1
@@ -35,22 +49,6 @@ class DeepfakeDataset(Dataset):
         self.labels = valid_labels
         print(f"Dataset initialized with {len(self.labels)} samples. Skipped {skipped} invalid samples.")
 
-    def _load_labels(self, labels_file):
-        labels = []
-        with open(labels_file, "r") as f:
-            for line in f:
-                parts = line.strip().split(maxsplit=1)
-                if len(parts) != 2:
-                    print(f"Warning: Invalid label line format: {line.strip()}")
-                    continue
-                label, relative_path = parts
-                try:
-                    label = int(label)
-                    labels.append((label, relative_path))
-                except ValueError:
-                    print(f"Warning: Invalid label value: {label} in line: {line.strip()}")
-        return labels
-
     def __len__(self):
         return len(self.labels)
 
@@ -59,7 +57,6 @@ class DeepfakeDataset(Dataset):
         video_folder = os.path.join(self.root_dir, os.path.splitext(relative_path)[0])
         frame_files = sorted([f for f in os.listdir(video_folder) if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
 
-        frames = []
         if total_frames >= self.seq_len:
             # Randomly select a starting index
             start_idx = random.randint(0, total_frames - self.seq_len)
@@ -67,8 +64,9 @@ class DeepfakeDataset(Dataset):
         else:
             # Use all available frames and pad the rest
             selected_frames = frame_files
-            padding_needed = self.seq_len - total_frames
+            # padding will be done later
 
+        frames = []
         for frame_file in selected_frames:
             frame_path = os.path.join(video_folder, frame_file)
             try:
@@ -80,6 +78,7 @@ class DeepfakeDataset(Dataset):
                 if len(frames) > 0:
                     frames.append(frames[-1])
                 else:
+                    # Create a dummy black frame if this is the first frame
                     frames.append(torch.zeros(3, 224, 224))
 
         if total_frames < self.seq_len:
@@ -88,5 +87,5 @@ class DeepfakeDataset(Dataset):
             for _ in range(self.seq_len - total_frames):
                 frames.append(last_frame.clone())
 
-        frames_tensor = torch.stack(frames)  # Shape: [seq_len, 3, 224, 224]
+        frames_tensor = torch.stack(frames)  # Shape: [seq_len, 3, H, W]
         return frames_tensor, torch.tensor(label, dtype=torch.float32)

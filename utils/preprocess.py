@@ -333,8 +333,8 @@ def preprocess_dataset():
     """
 
     # Set sampling ratios for real and fake videos here:
-    real_video_ratio = 0.25  # For example, 25% of all real videos
-    fake_video_ratio = 0.25  # For example, 25% of all fake videos
+    real_video_ratio = 0.01  # For example, 25% of all real videos
+    fake_video_ratio = 0.007  # For example, 25% of all fake videos
 
     input_folders = [
         "data/Celeb-real",
