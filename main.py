@@ -212,6 +212,42 @@ def evaluate_model(model, dataloader, criterion, device, batched_edge_index):
     average_loss = epoch_loss / len(dataloader)
     return average_loss, val_acc, val_auc, val_f1, val_recall, val_frr, val_gar, val_precision
 
+import json 
+
+def save_model_and_result(model, results, model_path, results_path):
+    """
+    Save model state and results to disk.
+    
+    Args:
+        model (torch.nn.Module): Trained model.
+        results (dict): Evaluation results.
+        model_path (str): Path to save the model state.
+        results_path (str): Path to save the results JSON.
+    """
+    # Ensure directories exist
+    model_dir = os.path.dirname(model_path)
+    results_dir = os.path.dirname(results_path)
+
+    if model_dir and not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+    if results_dir and not os.path.exists(results_dir):
+        os.makedirs(results_dir)
+
+    # Save Model
+    try:
+        torch.save(model.state_dict(), model_path)
+        print(f"Model saved to {model_path}")
+    except Exception as e:
+        print(f"Error saving model: {e}")
+
+    # Save Results in a JSON file
+    try:
+        with open(results_path, 'w') as file:
+            json.dump(results, file, indent=4)
+        print(f"Results saved to {results_path}")
+    except Exception as e:
+        print(f"Error saving results: {e}")
+
 def main():
     """Main function to train and evaluate the deepfake detection model."""
     # Check if preprocessed data exists
@@ -342,6 +378,34 @@ def main():
         scheduler.step(val_auc)
 
         epoch_time = time.time() - start_time
+        
+        results = {
+            'Epoch': epoch,  # Current epoch number
+            'Training': {
+                'Training Loss': train_loss,  
+                'Training Accuracy': train_acc, 
+                'Training AUC': train_auc, 
+                'Trainig F1-Score': train_f1,  
+                'Training Recall': train_recall,  
+                'Training FRR': train_frr,  
+                'Training GAR': train_gar,  
+                'Training Precision': train_precision  
+            },
+            'Testing': {
+                'Val Loss': val_loss,  
+                'Val Accuracy': val_acc,  
+                'Val AUC': val_auc,  
+                'Val F1-Score': val_f1, 
+                'Val Recall': val_recall, 
+                'Val FRR': val_frr,  
+                'Val GAR': val_gar, 
+                'Val Precision': val_precision  
+            },
+            'Epoch Time': epoch_time  # Duration of the epoch in seconds
+        }
+
+        save_model_and_result(model, results, model_path=f"outputs/models/epoch-{epoch}-model.pth", results=f"outputs/results/epoch-{epoch}-model.json")
+
         print(f"\nEpoch {epoch+1}/{num_epochs} Summary:")
         print(f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.4f} | Train AUC: {train_auc:.4f} | Train F1: {train_f1:.4f} | Train Recall: {train_recall:.4f} | Train FRR: {train_frr:.4f} | Train GAR: {train_gar:.4f} | Train Precision: {train_precision:.4f}")
         print(f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f} | Val AUC: {val_auc:.4f} | Val F1: {val_f1:.4f} | Val Recall: {val_recall:.4f} | Val FRR: {val_frr:.4f} | Val GAR: {val_gar:.4f} | Val Precision: {val_precision:.4f}")
