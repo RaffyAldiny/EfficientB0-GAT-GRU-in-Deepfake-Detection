@@ -17,6 +17,7 @@ import time
 from tqdm import tqdm
 import random
 import numpy as np
+import json 
 
 def set_seed(seed=42):
     """Set the random seed for reproducibility."""
@@ -212,7 +213,6 @@ def evaluate_model(model, dataloader, criterion, device, batched_edge_index):
     average_loss = epoch_loss / len(dataloader)
     return average_loss, val_acc, val_auc, val_f1, val_recall, val_frr, val_gar, val_precision
 
-import json 
 
 def save_model_and_result(model, results, model_path, results_path):
     """
