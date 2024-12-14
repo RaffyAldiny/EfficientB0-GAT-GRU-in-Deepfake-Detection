@@ -328,9 +328,13 @@ def main():
     print("Starting training...")
     for epoch in range(num_epochs):
         start_time = time.time()
+
+        # Epoch Training
         train_loss, train_acc, train_auc, train_f1, train_recall, train_frr, train_gar, train_precision = train_epoch(
             model, train_dataloader, criterion, optimizer, device, batched_edge_index, grad_clip=5.0
         )
+
+        # Epoch Evaluation 
         val_loss, val_acc, val_auc, val_f1, val_recall, val_frr, val_gar, val_precision = evaluate_model(
             model, test_dataloader, criterion, device, batched_edge_index
         )
