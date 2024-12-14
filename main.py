@@ -317,7 +317,7 @@ def main():
     train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
 
     # Data Loaders
-    batch_size = 32 # Batch Size 
+    batch_size = 1 # Batch Size 
 
     # Load Train Data (70%)
     train_dataloader = DataLoader(
@@ -358,7 +358,7 @@ def main():
         verbose=True
     )
 
-    num_epochs = 20 # Number of Epochs
+    num_epochs = 1 # Number of Epochs
     best_auc = 0.0
 
     print("Starting training...")
@@ -380,7 +380,7 @@ def main():
         epoch_time = time.time() - start_time
         
         results = {
-            'Epoch': epoch,  # Current epoch number
+            'Epoch': epoch+1,  # Current epoch number
             'Training': {
                 'Training Loss': train_loss,  
                 'Training Accuracy': train_acc, 
@@ -407,7 +407,7 @@ def main():
         save_model_and_result(
             model, 
             results, 
-            model_path=f"outputs/models/epoch-{epoch}-model.pth", 
+            model_path=f"outputs/models/epoch-{epoch+1}-model.pth", 
             results_path=f"outputs/results/epoch-{epoch}-model.json"
         )
 
