@@ -216,7 +216,7 @@ def main():
     """Main function to train and evaluate the deepfake detection model."""
     # Check if preprocessed data exists
     preprocessed_dir = "data/preprocessed/"
-    required_subdirs = ["Celeb-real", "Celeb-synthesis", "YouTube-real"]
+    required_subdirs = ["Celeb-real", "Celeb-synthesis"]
     missing_subdirs = [subdir for subdir in required_subdirs if not os.path.exists(os.path.join(preprocessed_dir, subdir))]
 
     if missing_subdirs:
