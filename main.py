@@ -208,7 +208,7 @@ def evaluate_model(model, dataloader, criterion, device, batched_edge_index):
     all_preds = np.array(all_preds)
     all_probs = np.array(all_probs)
 
-    val_acc, val_f1, val_auc, val_f1, val_recall, val_frr, val_gar, val_precision = compute_metrics(all_labels, all_preds, all_probs)
+    val_acc, val_f1, val_auc, val_recall, val_frr, val_gar, val_precision = compute_metrics(all_labels, all_preds, all_probs)
     average_loss = epoch_loss / len(dataloader)
     return average_loss, val_acc, val_auc, val_f1, val_recall, val_frr, val_gar, val_precision
 
@@ -280,7 +280,7 @@ def main():
     train_size = len(dataset) - test_size
     train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
 
-    batch_size = 4
+    batch_size = 2
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=batch_size,
@@ -317,7 +317,7 @@ def main():
         verbose=True
     )
 
-    num_epochs = 3
+    num_epochs = 1
     best_auc = 0.0
 
     print("Starting training...")
