@@ -44,11 +44,13 @@ def create_batched_edge_index(edge_index, batch_size, num_nodes, device):
 class DeepfakeModel(nn.Module):
     """Deepfake Detection Model combining EfficientNet, GAT, and GRU."""
 
-    def __init__(self, seq_len=100, dropout_rate=0.5):
+    def __init__(self, seq_len=40, dropout_rate=0.5):
         super(DeepfakeModel, self).__init__()
         self.seq_len = seq_len
         self.efficientnet = get_efficientnet()
-        self.gat = GAT(in_channels=1280, out_channels=8, heads=1)  
+        # Projection layer: from 1280 (EfficientNet output) to 256
+        self.projection = nn.Linear(1280, 256)
+        self.gat = GAT(in_channels=256, out_channels=8, heads=1)
         self.gru = GRU(input_size=8, hidden_size=32, num_layers=1, dropout=dropout_rate)
         self.fc = nn.Linear(32, 1)
 
@@ -56,9 +58,11 @@ class DeepfakeModel(nn.Module):
         batch_size, seq_len, c, h, w = x.shape
         x = x.view(batch_size * seq_len, c, h, w)
         spatial_features = self.efficientnet(x).squeeze(-1).squeeze(-1)
-        node_features = spatial_features
 
-        gat_output = self.gat(node_features, batched_edge_index)  
+        # Apply projection
+        projected_features = self.projection(spatial_features)
+
+        gat_output = self.gat(projected_features, batched_edge_index)
         gat_output = gat_output.view(batch_size, seq_len, -1)
 
         gru_output = self.gru(gat_output)
@@ -136,7 +140,7 @@ def train_epoch(model, dataloader, criterion, optimizer, device, batched_edge_in
             all_probs.extend(probs)
 
             pbar.set_postfix({
-                'Loss': f"{loss.item():.4f}", 
+                'Loss': f"{loss.item():.4f}",
                 'Acc': f"{batch_acc:.4f}",
                 'F1': f"{batch_f1:.4f}",
                 'AUC': f"{batch_auc:.4f}",
@@ -188,7 +192,7 @@ def evaluate_model(model, dataloader, criterion, device, batched_edge_index):
                 all_probs.extend(probs)
 
                 pbar.set_postfix({
-                    'Loss': f"{loss.item():.4f}", 
+                    'Loss': f"{loss.item():.4f}",
                     'Acc': f"{batch_acc:.4f}",
                     'F1': f"{batch_f1:.4f}",
                     'AUC': f"{batch_auc:.4f}",
@@ -204,7 +208,7 @@ def evaluate_model(model, dataloader, criterion, device, batched_edge_index):
     all_preds = np.array(all_preds)
     all_probs = np.array(all_probs)
 
-    val_acc, val_f1, val_auc, val_recall, val_frr, val_gar, val_precision = compute_metrics(all_labels, all_preds, all_probs)
+    val_acc, val_f1, val_auc, val_f1, val_recall, val_frr, val_gar, val_precision = compute_metrics(all_labels, all_preds, all_probs)
     average_loss = epoch_loss / len(dataloader)
     return average_loss, val_acc, val_auc, val_f1, val_recall, val_frr, val_gar, val_precision
 
@@ -221,7 +225,7 @@ def main():
     else:
         print("Preprocessed data found. Proceeding to training.")
 
-    seq_len = 100
+    seq_len = 40  # Changed seq_len to 40
     dropout_rate = 0.5
     model = DeepfakeModel(seq_len=seq_len, dropout_rate=dropout_rate).to(device)
 
@@ -256,8 +260,8 @@ def main():
 
     pos_weight = None
     if len(class_counts) == 2:
-        classes = np.array(list(class_counts.keys()))  
-        labels_np = np.array(labels)  
+        classes = np.array(list(class_counts.keys()))
+        labels_np = np.array(labels)
         class_weights = class_weight.compute_class_weight('balanced', classes=classes, y=labels_np)
         class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
         pos_weight = class_weights[1] / (class_weights[0] if class_weights[0] != 0 else 1.0)
@@ -266,8 +270,8 @@ def main():
         print("Not a binary classification scenario or class count issue. Using default weights.")
 
     criterion = CombinedLoss(
-        bce_weight=0.5, 
-        jsd_weight=0.5, 
+        bce_weight=0.5,
+        jsd_weight=0.5,
         pos_weight=(torch.tensor(pos_weight).to(device) if pos_weight is not None else None)
     )
 
@@ -278,19 +282,19 @@ def main():
 
     batch_size = 4
     train_dataloader = DataLoader(
-        train_dataset, 
-        batch_size=batch_size, 
-        shuffle=True, 
-        num_workers=2, 
-        pin_memory=False, 
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=2,
+        pin_memory=False,
         drop_last=True
     )
     test_dataloader = DataLoader(
-        test_dataset, 
-        batch_size=batch_size, 
-        shuffle=False, 
-        num_workers=2, 
-        pin_memory=False, 
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=2,
+        pin_memory=False,
         drop_last=True
     )
 
@@ -306,10 +310,10 @@ def main():
 
     optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-5)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, 
-        mode='max', 
-        factor=0.5, 
-        patience=3, 
+        optimizer,
+        mode='max',
+        factor=0.5,
+        patience=3,
         verbose=True
     )
 
