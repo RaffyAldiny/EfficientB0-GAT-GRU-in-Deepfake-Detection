@@ -317,7 +317,7 @@ def main():
     train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
 
     # Data Loaders
-    batch_size = 32 # Batch Size 
+    batch_size = 32 # Batch Size [Default is 32]
 
     # Load Train Data (70%)
     train_dataloader = DataLoader(
@@ -358,7 +358,7 @@ def main():
         verbose=True
     )
 
-    num_epochs = 20 # Number of Epochs
+    num_epochs = 20 # Number of Epochs [Defaul is 20]
     best_auc = 0.0
 
     print("Starting training...")
