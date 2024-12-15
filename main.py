@@ -317,7 +317,7 @@ def main():
     train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
 
     # Data Loaders
-    batch_size = 1 # Batch Size 
+    batch_size = 32 # Batch Size 
 
     # Load Train Data (70%)
     train_dataloader = DataLoader(
@@ -358,7 +358,7 @@ def main():
         verbose=True
     )
 
-    num_epochs = 1 # Number of Epochs
+    num_epochs = 20 # Number of Epochs
     best_auc = 0.0
 
     print("Starting training...")
@@ -385,7 +385,7 @@ def main():
                 'Training Loss': train_loss,  
                 'Training Accuracy': train_acc, 
                 'Training AUC': train_auc, 
-                'Trainig F1-Score': train_f1,  
+                'Training F1-Score': train_f1,  
                 'Training Recall': train_recall,  
                 'Training FRR': train_frr,  
                 'Training GAR': train_gar,  
@@ -407,8 +407,8 @@ def main():
         save_model_and_result(
             model, 
             results, 
-            model_path=f"outputs/models/epoch-{epoch+1}-model.pth", 
-            results_path=f"outputs/results/epoch-{epoch}-model.json"
+            model_path=f"outputs/models/epoch-{epoch+1}-model.pt", 
+            results_path=f"outputs/results/epoch-{epoch+1}-model.json"
         )
 
         print(f"\nEpoch {epoch+1}/{num_epochs} Summary:")
@@ -419,13 +419,13 @@ def main():
         if val_auc > best_auc:
             best_auc = val_auc
             os.makedirs("outputs", exist_ok=True)
-            torch.save(model.state_dict(), "outputs/best_deepfake_model.pth")
+            torch.save(model.state_dict(), f"outputs/best_deepfake_model_epoch_{epoch+1}.pt")
             print("Best model updated and saved.")
 
     print("Training completed. Saving final model...")
     os.makedirs("outputs", exist_ok=True)
-    torch.save(model.state_dict(), "outputs/deepfake_model_final.pth")
-    print("Model saved at outputs/deepfake_model_final.pth")
+    torch.save(model.state_dict(), "outputs/deepfake_model_final.pt")
+    print("Model saved at outputs/deepfake_model_final.pt")
 
 if __name__ == "__main__":
     main()
