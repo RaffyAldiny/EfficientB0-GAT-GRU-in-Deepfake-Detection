@@ -1,3 +1,5 @@
+# main.py
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -6,7 +8,6 @@ from torchvision.transforms import Compose, ToTensor, Resize
 from models.efficientnet import get_efficientnet
 from models.gat import GAT
 from models.gru import GRU
-from utils.preprocess import preprocess_dataset
 from utils.dataset import DeepfakeDataset
 from utils.losses import CombinedLoss
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
@@ -16,6 +17,7 @@ import time
 from tqdm import tqdm
 import random
 import numpy as np
+import json 
 
 def set_seed(seed=42):
     """Set the random seed for reproducibility."""
@@ -32,15 +34,6 @@ print(f"Using device: {device}")
 def create_batched_edge_index(edge_index, batch_size, num_nodes, device):
     """
     Create a batched edge index for the graph attention network.
-
-    Args:
-        edge_index (torch.Tensor): Original edge index.
-        batch_size (int): Number of samples in a batch.
-        num_nodes (int): Number of nodes per graph.
-        device (torch.device): Device to place the tensor on.
-
-    Returns:
-        torch.Tensor: Batched edge index.
     """
     edge_index = edge_index.clone()
     edge_index = edge_index.repeat(1, batch_size)
@@ -52,11 +45,13 @@ def create_batched_edge_index(edge_index, batch_size, num_nodes, device):
 class DeepfakeModel(nn.Module):
     """Deepfake Detection Model combining EfficientNet, GAT, and GRU."""
 
-    def __init__(self, seq_len=100, dropout_rate=0.5):
+    def __init__(self, seq_len=40, dropout_rate=0.5):
         super(DeepfakeModel, self).__init__()
         self.seq_len = seq_len
         self.efficientnet = get_efficientnet()
-        self.gat = GAT(in_channels=1280, out_channels=8, heads=1)  
+        # Projection layer: from 1280 (EfficientNet output) to 256
+        self.projection = nn.Linear(1280, 256)
+        self.gat = GAT(in_channels=256, out_channels=8, heads=1)
         self.gru = GRU(input_size=8, hidden_size=32, num_layers=1, dropout=dropout_rate)
         self.fc = nn.Linear(32, 1)
 
@@ -64,14 +59,50 @@ class DeepfakeModel(nn.Module):
         batch_size, seq_len, c, h, w = x.shape
         x = x.view(batch_size * seq_len, c, h, w)
         spatial_features = self.efficientnet(x).squeeze(-1).squeeze(-1)
-        node_features = spatial_features
 
-        gat_output = self.gat(node_features, batched_edge_index)  
+        # Apply projection
+        projected_features = self.projection(spatial_features)
+
+        gat_output = self.gat(projected_features, batched_edge_index)
         gat_output = gat_output.view(batch_size, seq_len, -1)
 
         gru_output = self.gru(gat_output)
         output = self.fc(gru_output[:, -1, :])
         return output
+
+def compute_metrics(labels, preds, probs):
+    """
+    Compute various metrics:
+    Accuracy, F1 (for fake class), AUC, Recall (for fake),
+    FRR (for real), GAR, and Precision (for fake).
+    """
+    accuracy = accuracy_score(labels, preds)
+
+    # Check if we have both classes for AUC and F1
+    if len(set(labels)) > 1:
+        auc = roc_auc_score(labels, probs)
+        f1 = f1_score(labels, preds)
+    else:
+        auc = 0.0
+        f1 = 0.0
+
+    # Confusion matrix values
+    # Consider fake=1 as positive for these calculations
+    TP_fake = np.sum((preds == 1) & (labels == 1))
+    FN_fake = np.sum((preds == 0) & (labels == 1))
+    FP_fake = np.sum((preds == 1) & (labels == 0))
+    # Recall for fake class
+    recall_fake = TP_fake / (TP_fake + FN_fake) if (TP_fake + FN_fake) > 0 else 0.0
+    # Precision for fake class
+    precision_fake = TP_fake / (TP_fake + FP_fake) if (TP_fake + FP_fake) > 0 else 0.0
+
+    # For FRR and GAR, consider real=0 as "genuine"
+    TP_real = np.sum((preds == 0) & (labels == 0))
+    FN_real = np.sum((preds == 1) & (labels == 0))  # falsely rejecting real
+    FRR = FN_real / (TP_real + FN_real) if (TP_real + FN_real) > 0 else 0.0
+    GAR = 1 - FRR
+
+    return accuracy, f1, auc, recall_fake, FRR, GAR, precision_fake
 
 def train_epoch(model, dataloader, criterion, optimizer, device, batched_edge_index, grad_clip=5.0):
     """Train the model for one epoch."""
@@ -100,19 +131,35 @@ def train_epoch(model, dataloader, criterion, optimizer, device, batched_edge_in
             epoch_loss += loss.item()
             probs = torch.sigmoid(outputs).detach().cpu().numpy()
             preds = (probs > 0.5).astype(int)
-            all_labels.extend(labels.cpu().numpy())
+            batch_labels_np = labels.cpu().numpy()
+
+            # Compute batch metrics
+            batch_acc, batch_f1, batch_auc, batch_recall, batch_frr, batch_gar, batch_precision = compute_metrics(batch_labels_np, preds, probs)
+
+            all_labels.extend(batch_labels_np)
             all_preds.extend(preds)
             all_probs.extend(probs)
 
-            batch_accuracy = accuracy_score(labels.cpu().numpy(), preds)
-            pbar.set_postfix({'Loss': f"{loss.item():.4f}", 'Acc': f"{batch_accuracy:.4f}"})
+            pbar.set_postfix({
+                'Loss': f"{loss.item():.4f}",
+                'Acc': f"{batch_acc:.4f}",
+                'F1': f"{batch_f1:.4f}",
+                'AUC': f"{batch_auc:.4f}",
+                'Recall': f"{batch_recall:.4f}",
+                'FRR': f"{batch_frr:.4f}",
+                'GAR': f"{batch_gar:.4f}",
+                'Precision': f"{batch_precision:.4f}"
+            })
             pbar.update(1)
 
+    # Epoch-level metrics
+    all_labels = np.array(all_labels)
+    all_preds = np.array(all_preds)
+    all_probs = np.array(all_probs)
+
+    epoch_acc, epoch_f1, epoch_auc, epoch_recall, epoch_frr, epoch_gar, epoch_precision = compute_metrics(all_labels, all_preds, all_probs)
     average_loss = epoch_loss / len(dataloader)
-    accuracy = accuracy_score(all_labels, all_preds)
-    auc = roc_auc_score(all_labels, all_probs) if len(set(all_labels)) > 1 else 0.0
-    f1 = f1_score(all_labels, all_preds) if len(set(all_labels)) > 1 else 0.0
-    return average_loss, accuracy, auc, f1
+    return average_loss, epoch_acc, epoch_auc, epoch_f1, epoch_recall, epoch_frr, epoch_gar, epoch_precision
 
 def evaluate_model(model, dataloader, criterion, device, batched_edge_index):
     """Evaluate the model."""
@@ -136,41 +183,85 @@ def evaluate_model(model, dataloader, criterion, device, batched_edge_index):
 
                 probs = torch.sigmoid(outputs).cpu().numpy()
                 preds = (probs > 0.5).astype(int)
+                batch_labels_np = labels.cpu().numpy()
 
-                all_labels.extend(labels.cpu().numpy())
+                # Compute batch metrics
+                batch_acc, batch_f1, batch_auc, batch_recall, batch_frr, batch_gar, batch_precision = compute_metrics(batch_labels_np, preds, probs)
+
+                all_labels.extend(batch_labels_np)
                 all_preds.extend(preds)
                 all_probs.extend(probs)
 
-                batch_accuracy = accuracy_score(labels.cpu().numpy(), preds)
-                pbar.set_postfix({'Loss': f"{loss.item():.4f}", 'Acc': f"{batch_accuracy:.4f}"})
+                pbar.set_postfix({
+                    'Loss': f"{loss.item():.4f}",
+                    'Acc': f"{batch_acc:.4f}",
+                    'F1': f"{batch_f1:.4f}",
+                    'AUC': f"{batch_auc:.4f}",
+                    'Recall': f"{batch_recall:.4f}",
+                    'FRR': f"{batch_frr:.4f}",
+                    'GAR': f"{batch_gar:.4f}",
+                    'Precision': f"{batch_precision:.4f}"
+                })
                 pbar.update(1)
 
+    # Epoch-level metrics
+    all_labels = np.array(all_labels)
+    all_preds = np.array(all_preds)
+    all_probs = np.array(all_probs)
+
+    val_acc, val_f1, val_auc, val_recall, val_frr, val_gar, val_precision = compute_metrics(all_labels, all_preds, all_probs)
     average_loss = epoch_loss / len(dataloader)
-    accuracy = accuracy_score(all_labels, all_preds)
-    auc = roc_auc_score(all_labels, all_probs) if len(set(all_labels)) > 1 else 0.0
-    f1 = f1_score(all_labels, all_preds) if len(set(all_labels)) > 1 else 0.0
-    return average_loss, accuracy, auc, f1
+    return average_loss, val_acc, val_auc, val_f1, val_recall, val_frr, val_gar, val_precision
+
+
+def save_model_and_result(model, results, model_path, results_path):
+    """
+    Save model state and results to disk.
+    
+    Args:
+        model (torch.nn.Module): Trained model.
+        results (dict): Evaluation results.
+        model_path (str): Path to save the model state.
+        results_path (str): Path to save the results JSON.
+    """
+    # Ensure directories exist
+    model_dir = os.path.dirname(model_path)
+    results_dir = os.path.dirname(results_path)
+
+    if model_dir and not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+    if results_dir and not os.path.exists(results_dir):
+        os.makedirs(results_dir)
+
+    # Save Model
+    try:
+        torch.save(model.state_dict(), model_path)
+        print(f"Model saved to {model_path}")
+    except Exception as e:
+        print(f"Error saving model: {e}")
+
+    # Save Results in a JSON file
+    try:
+        with open(results_path, 'w') as file:
+            json.dump(results, file, indent=4)
+        print(f"Results saved to {results_path}")
+    except Exception as e:
+        print(f"Error saving results: {e}")
 
 def main():
     """Main function to train and evaluate the deepfake detection model."""
-    # If data isn't preprocessed, run preprocessing
+    # Check if preprocessed data exists
     preprocessed_dir = "data/preprocessed/"
-    if not os.path.exists(preprocessed_dir) or len(os.listdir(preprocessed_dir)) == 0:
-        print("Starting preprocessing...")
-        os.makedirs("data/preprocessed/real", exist_ok=True)
-        os.makedirs("data/preprocessed/synthesis", exist_ok=True)
-        os.makedirs("data/preprocessed/YouTube-real", exist_ok=True)
+    required_subdirs = ["Celeb-real", "Celeb-synthesis"]
+    missing_subdirs = [subdir for subdir in required_subdirs if not os.path.exists(os.path.join(preprocessed_dir, subdir))]
 
-        print("Preprocessing Celeb-real...")
-        preprocess_dataset("data/Celeb-real", "data/preprocessed/real")
-        print("Preprocessing Celeb-synthesis...")
-        preprocess_dataset("data/Celeb-synthesis", "data/preprocessed/synthesis")
-        print("Preprocessing YouTube-real...")
-        preprocess_dataset("data/YouTube-real", "data/preprocessed/YouTube-real")
+    if missing_subdirs:
+        print(f"Error: Preprocessed directories missing: {missing_subdirs}. Please run the preprocessing script first.")
+        return
     else:
-        print("Preprocessed data found. Skipping preprocessing.")
+        print("Preprocessed data found. Proceeding to training.")
 
-    seq_len = 100
+    seq_len = 40  # Changed seq_len to 40
     dropout_rate = 0.5
     model = DeepfakeModel(seq_len=seq_len, dropout_rate=dropout_rate).to(device)
 
@@ -184,12 +275,11 @@ def main():
         print(f"Error: Labels file not found at {labels_file}")
         return
 
-    # The DeepfakeDataset class handles padding shorter sequences
     dataset = DeepfakeDataset(
         root_dir="data/preprocessed/",
         labels_file=labels_file,
         transform=transform,
-        limit=2000,  # Adjust limit as needed
+        limit=3000,  # Adjust limit as needed
         seq_len=seq_len
     )
 
@@ -206,8 +296,8 @@ def main():
 
     pos_weight = None
     if len(class_counts) == 2:
-        classes = np.array(list(class_counts.keys()))  # Convert to numpy array
-        labels_np = np.array(labels)  # Convert labels to numpy array
+        classes = np.array(list(class_counts.keys()))
+        labels_np = np.array(labels)
         class_weights = class_weight.compute_class_weight('balanced', classes=classes, y=labels_np)
         class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
         pos_weight = class_weights[1] / (class_weights[0] if class_weights[0] != 0 else 1.0)
@@ -216,8 +306,8 @@ def main():
         print("Not a binary classification scenario or class count issue. Using default weights.")
 
     criterion = CombinedLoss(
-        bce_weight=0.5, 
-        jsd_weight=0.5, 
+        bce_weight=0.5,
+        jsd_weight=0.5,
         pos_weight=(torch.tensor(pos_weight).to(device) if pos_weight is not None else None)
     )
 
@@ -226,21 +316,26 @@ def main():
     train_size = len(dataset) - test_size
     train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
 
-    batch_size = 9
+    # Data Loaders
+    batch_size = 32 # Batch Size [Default is 32]
+
+    # Load Train Data (70%)
     train_dataloader = DataLoader(
-        train_dataset, 
-        batch_size=batch_size, 
-        shuffle=True, 
-        num_workers=2, 
-        pin_memory=False, 
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=2,
+        pin_memory=False,
         drop_last=True
     )
+
+    # Load Test Data (30%)
     test_dataloader = DataLoader(
-        test_dataset, 
-        batch_size=batch_size, 
-        shuffle=False, 
-        num_workers=2, 
-        pin_memory=False, 
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=2,
+        pin_memory=False,
         drop_last=True
     )
 
@@ -256,44 +351,81 @@ def main():
 
     optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-5)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, 
-        mode='max', 
-        factor=0.5, 
-        patience=3, 
+        optimizer,
+        mode='max',
+        factor=0.5,
+        patience=3,
         verbose=True
     )
 
-    num_epochs = 3
+    num_epochs = 20 # Number of Epochs [Defaul is 20]
     best_auc = 0.0
 
     print("Starting training...")
     for epoch in range(num_epochs):
         start_time = time.time()
-        train_loss, train_acc, train_auc, train_f1 = train_epoch(
+
+        # Epoch Training
+        train_loss, train_acc, train_auc, train_f1, train_recall, train_frr, train_gar, train_precision = train_epoch(
             model, train_dataloader, criterion, optimizer, device, batched_edge_index, grad_clip=5.0
         )
-        val_loss, val_acc, val_auc, val_f1 = evaluate_model(
+
+        # Epoch Evaluation 
+        val_loss, val_acc, val_auc, val_f1, val_recall, val_frr, val_gar, val_precision = evaluate_model(
             model, test_dataloader, criterion, device, batched_edge_index
         )
 
         scheduler.step(val_auc)
 
         epoch_time = time.time() - start_time
+        
+        results = {
+            'Epoch': epoch+1,  # Current epoch number
+            'Training': {
+                'Training Loss': train_loss,  
+                'Training Accuracy': train_acc, 
+                'Training AUC': train_auc, 
+                'Training F1-Score': train_f1,  
+                'Training Recall': train_recall,  
+                'Training FRR': train_frr,  
+                'Training GAR': train_gar,  
+                'Training Precision': train_precision  
+            },
+            'Testing': {
+                'Val Loss': val_loss,  
+                'Val Accuracy': val_acc,  
+                'Val AUC': val_auc,  
+                'Val F1-Score': val_f1, 
+                'Val Recall': val_recall, 
+                'Val FRR': val_frr,  
+                'Val GAR': val_gar, 
+                'Val Precision': val_precision  
+            },
+            'Epoch Time': epoch_time  # Duration of the epoch in seconds
+        }
+
+        save_model_and_result(
+            model, 
+            results, 
+            model_path=f"outputs/models/epoch-{epoch+1}-model.pt", 
+            results_path=f"outputs/results/epoch-{epoch+1}-model.json"
+        )
+
         print(f"\nEpoch {epoch+1}/{num_epochs} Summary:")
-        print(f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.4f} | Train AUC: {train_auc:.4f} | Train F1: {train_f1:.4f}")
-        print(f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f} | Val AUC: {val_auc:.4f} | Val F1: {val_f1:.4f}")
+        print(f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.4f} | Train AUC: {train_auc:.4f} | Train F1: {train_f1:.4f} | Train Recall: {train_recall:.4f} | Train FRR: {train_frr:.4f} | Train GAR: {train_gar:.4f} | Train Precision: {train_precision:.4f}")
+        print(f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f} | Val AUC: {val_auc:.4f} | Val F1: {val_f1:.4f} | Val Recall: {val_recall:.4f} | Val FRR: {val_frr:.4f} | Val GAR: {val_gar:.4f} | Val Precision: {val_precision:.4f}")
         print(f"Epoch Time: {epoch_time/60:.2f} minutes")
 
         if val_auc > best_auc:
             best_auc = val_auc
             os.makedirs("outputs", exist_ok=True)
-            torch.save(model.state_dict(), "outputs/best_deepfake_model.pth")
+            torch.save(model.state_dict(), f"outputs/best_deepfake_model_epoch_{epoch+1}.pt")
             print("Best model updated and saved.")
 
     print("Training completed. Saving final model...")
     os.makedirs("outputs", exist_ok=True)
-    torch.save(model.state_dict(), "outputs/deepfake_model_final.pth")
-    print("Model saved at outputs/deepfake_model_final.pth")
+    torch.save(model.state_dict(), "outputs/deepfake_model_final.pt")
+    print("Model saved at outputs/deepfake_model_final.pt")
 
 if __name__ == "__main__":
     main()
