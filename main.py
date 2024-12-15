@@ -240,7 +240,7 @@ def main():
 
     if missing_subdirs:
         print(f"Error: Preprocessed directories missing: {missing_subdirs}. Please run the preprocessing script first.")
-        return
+        print("Proceeding with directories only found in the preprocessed folder.")
     else:
         print("Preprocessed data found. Proceeding to training.")
 
