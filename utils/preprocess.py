@@ -71,15 +71,17 @@ def resize_with_padding(frame, target_size=(224, 224)):
 def get_augmentation_pipelines():
     """
     Define augmentation pipelines using ReplayCompose.
+    Includes a "no augmentation" pipeline for retaining original frames.
     """
     transforms = [
+        A.ReplayCompose([]),  # No augmentation (retain original frame)
         A.ReplayCompose([
             A.HorizontalFlip(p=0.5),
             A.RandomBrightnessContrast(p=0.5),
             A.Rotate(limit=15, p=0.5),
-            A.GaussNoise(var_limit=(10.0, 50.0), p=0.3),
+            A.GaussNoise(var_limit=(5.0, 20.0), p=0.3),
             A.MotionBlur(blur_limit=5, p=0.2),
-            A.CLAHE(clip_limit=2.0, tile_grid_size=(8,8), p=0.3),
+            A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=0.3),
         ]),
         A.ReplayCompose([
             A.VerticalFlip(p=0.3),
@@ -92,7 +94,7 @@ def get_augmentation_pipelines():
         A.ReplayCompose([
             A.RandomSizedCrop(min_max_height=(200, 220), height=224, width=224, p=0.5),
             A.Blur(blur_limit=3, p=0.2),
-            A.HueSaturationValue(p=0.5),
+            A.HueSaturationValue(p=0.25),
             A.ToGray(p=0.2),
             A.RandomScale(scale_limit=0.1, p=0.3),
             A.GaussianBlur(blur_limit=(3, 5), p=0.2),
@@ -333,8 +335,8 @@ def preprocess_dataset():
     """
 
     # Set sampling ratios for real and fake videos here:
-    real_video_ratio = 0.01  # For example, 25% of all real videos
-    fake_video_ratio = 0.007  # For example, 25% of all fake videos
+    real_video_ratio = 0.80  # For example, 25% of all real videos
+    fake_video_ratio = 0.20  # For example, 25% of all fake videos
 
     input_folders = [
         "data/Celeb-real",
