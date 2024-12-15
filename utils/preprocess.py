@@ -342,9 +342,9 @@ def preprocess_dataset():
         "data/YouTube-real"
     ]
     output_folders = [
-        "data/temp/Celeb-real",
-        "data/temp/Celeb-synthesis",
-        "data/temp/YouTube-real"
+        "data/preprocessed/Celeb-real",
+        "data/preprocessed/Celeb-synthesis",
+        "data/preprocessed/YouTube-real"
     ]
 
     target_fps = 8
@@ -455,11 +455,11 @@ def preprocess_dataset():
 
     # Create a balanced subset from the preprocessed data
     real_preprocessed_folders = [
-        "data/temp/Celeb-real",
-        "data/temp/YouTube-real"
+        "data/preprocessed/Celeb-real",
+        "data/preprocessed/YouTube-real"
     ]
     fake_preprocessed_folders = [
-        "data/temp/Celeb-synthesis"
+        "data/preprocessed/Celeb-synthesis"
     ]
     subset_output_folder = "data/preprocessed/balanced_subset"
 
