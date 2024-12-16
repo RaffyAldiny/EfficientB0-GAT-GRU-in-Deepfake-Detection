@@ -264,7 +264,7 @@ def main():
     else:
         print("Preprocessed data found. Proceeding to training.")
 
-    dropout_rate = 0.5
+    dropout_rate = 0.75
     model = DeepfakeModel(dropout_rate=dropout_rate).to(device)
 
     transform = Compose([
@@ -338,7 +338,7 @@ def main():
         drop_last=False
     )
 
-    optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-5)
+    optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         mode='max',
