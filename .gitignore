@@ -17,4 +17,17 @@ __pycache__/
 *.log
 
 # Ignore Outputs
-outputs/
+outputs/models
+
+# Ignore best Model
+outputs/best_deepfake_model_epoch_1.pt
+outputs/best_deepfake_model_epoch_10.pt
+outputs/best_deepfake_model_epoch_11.pt
+outputs/best_deepfake_model_epoch_12.pt
+outputs/best_deepfake_model_epoch_14.pt
+outputs/best_deepfake_model_epoch_15.pt
+outputs/best_deepfake_model_epoch_2.pt
+outputs/best_deepfake_model_epoch_3.pt
+outputs/best_deepfake_model_epoch_4.pt
+outputs/best_deepfake_model_epoch_6.pt
+outputs/best_deepfake_model_epoch_9.pt
