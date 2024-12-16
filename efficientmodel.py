@@ -323,7 +323,7 @@ def main():
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=2,
+        num_workers=8,
         pin_memory=True,
         drop_last=True
     )
