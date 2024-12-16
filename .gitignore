@@ -16,8 +16,6 @@ __pycache__/
 *.py[cod]
 *.log
 
-# Ignore Outputs
-outputs/models
 
 # Ignore best Model
 outputs/best_deepfake_model_epoch_1.pt
