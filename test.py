@@ -216,6 +216,7 @@ def evaluate_model(model, dataset_path, edge_index, max_samples=10, seq_len=40, 
                     outputs = model(frames, batched_edge_index)  # Shape: (batch_size)
                 
                 probs = torch.sigmoid(outputs).squeeze().cpu().numpy()
+                print("probs ", probs)
                 pred = int(probs > 0.5)
             
             y_true.append(is_real)
@@ -293,7 +294,7 @@ def main():
         model=model_effgatgru,
         dataset_path=dataset_path,
         edge_index=edge_index,
-        max_samples=100,  # Adjust as needed
+        max_samples=8,  # Adjust as needed
         seq_len=seq_len,
         device=device,
         model_name="EfficientB0-GAT-GRU"
@@ -305,7 +306,7 @@ def main():
         model=model_efficientnet,
         dataset_path=dataset_path,
         edge_index=edge_index,  # Not used by EfficientNet, but we pass for compatibility
-        max_samples=100,  # Adjust as needed
+        max_samples=8,  # Adjust as needed
         seq_len=seq_len,
         device=device,
         model_name="EfficientNet-B0"
