@@ -1,5 +1,3 @@
-# main.py
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -31,20 +29,31 @@ set_seed(42)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
-def create_batched_edge_index(edge_index, batch_size, num_nodes, device):
+def create_batched_edge_index(base_edge_index, batch_size, num_nodes, device):
     """
-    Create a batched edge index for the graph attention network.
+    Create a batched edge index for the graph attention network dynamically
+    based on the current batch size.
+    
+    Args:
+        base_edge_index (torch.Tensor): Edge index for a single sequence (chain graph).
+        batch_size (int): Actual batch size.
+        num_nodes (int): Number of nodes per sequence (seq_len).
+        device (torch.device): Device to place the tensor.
+        
+    Returns:
+        torch.Tensor: Batched edge index.
     """
-    edge_index = edge_index.clone()
+    edge_index = base_edge_index.clone()
     edge_index = edge_index.repeat(1, batch_size)
     offsets = torch.arange(batch_size, device=device) * num_nodes
-    offsets = offsets.unsqueeze(0).repeat(2, edge_index.size(1) // batch_size)
+    # Determine how many edges per sample from base_edge_index.
+    num_edges_per_sample = base_edge_index.size(1)
+    offsets = offsets.unsqueeze(0).repeat(2, num_edges_per_sample)
     edge_index += offsets
     return edge_index
 
 class DeepfakeModel(nn.Module):
     """Deepfake Detection Model combining EfficientNet, GAT, and GRU."""
-
     def __init__(self, seq_len=40, dropout_rate=0.5):
         super(DeepfakeModel, self).__init__()
         self.seq_len = seq_len
@@ -59,13 +68,11 @@ class DeepfakeModel(nn.Module):
         batch_size, seq_len, c, h, w = x.shape
         x = x.view(batch_size * seq_len, c, h, w)
         spatial_features = self.efficientnet(x).squeeze(-1).squeeze(-1)
-
         # Apply projection
         projected_features = self.projection(spatial_features)
-
+        # Pass features through GAT using the batched edge index
         gat_output = self.gat(projected_features, batched_edge_index)
         gat_output = gat_output.view(batch_size, seq_len, -1)
-
         gru_output = self.gru(gat_output)
         output = self.fc(gru_output[:, -1, :])
         return output
@@ -77,8 +84,6 @@ def compute_metrics(labels, preds, probs):
     FRR (for real), GAR, and Precision (for fake).
     """
     accuracy = accuracy_score(labels, preds)
-
-    # Check if we have both classes for AUC and F1
     if len(set(labels)) > 1:
         auc = roc_auc_score(labels, probs)
         f1 = f1_score(labels, preds)
@@ -86,26 +91,21 @@ def compute_metrics(labels, preds, probs):
         auc = 0.0
         f1 = 0.0
 
-    # Confusion matrix values
-    # Consider fake=1 as positive for these calculations
     TP_fake = np.sum((preds == 1) & (labels == 1))
     FN_fake = np.sum((preds == 0) & (labels == 1))
     FP_fake = np.sum((preds == 1) & (labels == 0))
-    # Recall for fake class
     recall_fake = TP_fake / (TP_fake + FN_fake) if (TP_fake + FN_fake) > 0 else 0.0
-    # Precision for fake class
     precision_fake = TP_fake / (TP_fake + FP_fake) if (TP_fake + FP_fake) > 0 else 0.0
 
-    # For FRR and GAR, consider real=0 as "genuine"
     TP_real = np.sum((preds == 0) & (labels == 0))
-    FN_real = np.sum((preds == 1) & (labels == 0))  # falsely rejecting real
+    FN_real = np.sum((preds == 1) & (labels == 0))
     FRR = FN_real / (TP_real + FN_real) if (TP_real + FN_real) > 0 else 0.0
     GAR = 1 - FRR
 
     return accuracy, f1, auc, recall_fake, FRR, GAR, precision_fake
 
-def train_epoch(model, dataloader, criterion, optimizer, device, batched_edge_index, grad_clip=5.0):
-    """Train the model for one epoch."""
+def train_epoch(model, dataloader, criterion, optimizer, device, base_edge_index, seq_len, grad_clip=5.0):
+    """Train the model for one epoch, dynamically computing batched edge index."""
     model.train()
     epoch_loss = 0.0
     all_labels = []
@@ -114,8 +114,12 @@ def train_epoch(model, dataloader, criterion, optimizer, device, batched_edge_in
 
     with tqdm(total=len(dataloader), desc="Training", unit="batch") as pbar:
         for inputs, labels in dataloader:
-            inputs, labels = inputs.to(device), labels.to(device)
+            # Determine the current batch size (last batch can be smaller)
+            current_batch_size = inputs.size(0)
+            # Compute the batched edge index based on the actual batch size.
+            batched_edge_index = create_batched_edge_index(base_edge_index, current_batch_size, seq_len, device)
 
+            inputs, labels = inputs.to(device), labels.to(device)
             optimizer.zero_grad()
             outputs = model(inputs, batched_edge_index)
             outputs = outputs.view(-1)
@@ -123,8 +127,6 @@ def train_epoch(model, dataloader, criterion, optimizer, device, batched_edge_in
 
             loss = criterion(outputs, labels)
             loss.backward()
-
-            # Gradient Clipping
             torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
             optimizer.step()
 
@@ -132,10 +134,9 @@ def train_epoch(model, dataloader, criterion, optimizer, device, batched_edge_in
             probs = torch.sigmoid(outputs).detach().cpu().numpy()
             preds = (probs > 0.5).astype(int)
             batch_labels_np = labels.cpu().numpy()
-
-            # Compute batch metrics
-            batch_acc, batch_f1, batch_auc, batch_recall, batch_frr, batch_gar, batch_precision = compute_metrics(batch_labels_np, preds, probs)
-
+            batch_acc, batch_f1, batch_auc, batch_recall, batch_frr, batch_gar, batch_precision = compute_metrics(
+                batch_labels_np, preds, probs
+            )
             all_labels.extend(batch_labels_np)
             all_preds.extend(preds)
             all_probs.extend(probs)
@@ -152,17 +153,17 @@ def train_epoch(model, dataloader, criterion, optimizer, device, batched_edge_in
             })
             pbar.update(1)
 
-    # Epoch-level metrics
     all_labels = np.array(all_labels)
     all_preds = np.array(all_preds)
     all_probs = np.array(all_probs)
-
-    epoch_acc, epoch_f1, epoch_auc, epoch_recall, epoch_frr, epoch_gar, epoch_precision = compute_metrics(all_labels, all_preds, all_probs)
+    epoch_acc, epoch_f1, epoch_auc, epoch_recall, epoch_frr, epoch_gar, epoch_precision = compute_metrics(
+        all_labels, all_preds, all_probs
+    )
     average_loss = epoch_loss / len(dataloader)
     return average_loss, epoch_acc, epoch_auc, epoch_f1, epoch_recall, epoch_frr, epoch_gar, epoch_precision
 
-def evaluate_model(model, dataloader, criterion, device, batched_edge_index):
-    """Evaluate the model."""
+def evaluate_model(model, dataloader, criterion, device, base_edge_index, seq_len):
+    """Evaluate the model, dynamically computing batched edge index."""
     model.eval()
     epoch_loss = 0.0
     all_labels = []
@@ -172,8 +173,9 @@ def evaluate_model(model, dataloader, criterion, device, batched_edge_index):
     with torch.no_grad():
         with tqdm(total=len(dataloader), desc="Evaluating", unit="batch") as pbar:
             for inputs, labels in dataloader:
+                current_batch_size = inputs.size(0)
+                batched_edge_index = create_batched_edge_index(base_edge_index, current_batch_size, seq_len, device)
                 inputs, labels = inputs.to(device), labels.to(device)
-
                 outputs = model(inputs, batched_edge_index)
                 outputs = outputs.view(-1)
                 labels = labels.float().view(-1)
@@ -184,10 +186,9 @@ def evaluate_model(model, dataloader, criterion, device, batched_edge_index):
                 probs = torch.sigmoid(outputs).cpu().numpy()
                 preds = (probs > 0.5).astype(int)
                 batch_labels_np = labels.cpu().numpy()
-
-                # Compute batch metrics
-                batch_acc, batch_f1, batch_auc, batch_recall, batch_frr, batch_gar, batch_precision = compute_metrics(batch_labels_np, preds, probs)
-
+                batch_acc, batch_f1, batch_auc, batch_recall, batch_frr, batch_gar, batch_precision = compute_metrics(
+                    batch_labels_np, preds, probs
+                )
                 all_labels.extend(batch_labels_np)
                 all_preds.extend(preds)
                 all_probs.extend(probs)
@@ -204,43 +205,31 @@ def evaluate_model(model, dataloader, criterion, device, batched_edge_index):
                 })
                 pbar.update(1)
 
-    # Epoch-level metrics
     all_labels = np.array(all_labels)
     all_preds = np.array(all_preds)
     all_probs = np.array(all_probs)
-
-    val_acc, val_f1, val_auc, val_recall, val_frr, val_gar, val_precision = compute_metrics(all_labels, all_preds, all_probs)
+    val_acc, val_f1, val_auc, val_recall, val_frr, val_gar, val_precision = compute_metrics(
+        all_labels, all_preds, all_probs
+    )
     average_loss = epoch_loss / len(dataloader)
     return average_loss, val_acc, val_auc, val_f1, val_recall, val_frr, val_gar, val_precision
-
 
 def save_model_and_result(model, results, model_path, results_path):
     """
     Save model state and results to disk.
-    
-    Args:
-        model (torch.nn.Module): Trained model.
-        results (dict): Evaluation results.
-        model_path (str): Path to save the model state.
-        results_path (str): Path to save the results JSON.
     """
-    # Ensure directories exist
     model_dir = os.path.dirname(model_path)
     results_dir = os.path.dirname(results_path)
-
     if model_dir and not os.path.exists(model_dir):
         os.makedirs(model_dir)
     if results_dir and not os.path.exists(results_dir):
         os.makedirs(results_dir)
 
-    # Save Model
     try:
         torch.save(model.state_dict(), model_path)
         print(f"Model saved to {model_path}")
     except Exception as e:
         print(f"Error saving model: {e}")
-
-    # Save Results in a JSON file
     try:
         with open(results_path, 'w') as file:
             json.dump(results, file, indent=4)
@@ -250,18 +239,16 @@ def save_model_and_result(model, results, model_path, results_path):
 
 def main():
     """Main function to train and evaluate the deepfake detection model."""
-    # Check if preprocessed data exists
     preprocessed_dir = "data/preprocessed/"
-    required_subdirs = ["Celeb-real", "Celeb-synthesis","Youtube-real"]
+    required_subdirs = ["Celeb-real", "Celeb-synthesis", "Youtube-real"]
     missing_subdirs = [subdir for subdir in required_subdirs if not os.path.exists(os.path.join(preprocessed_dir, subdir))]
-
     if missing_subdirs:
         print(f"Error: Preprocessed directories missing: {missing_subdirs}. Please run the preprocessing script first.")
-        print("Missing  directory but proceeding to process")
+        print("Missing directory but proceeding to process")
     else:
         print("Preprocessed data found. Proceeding to training.")
 
-    seq_len = 40  # Changed seq_len to 40
+    seq_len = 40
     dropout_rate = 0.5
     model = DeepfakeModel(seq_len=seq_len, dropout_rate=dropout_rate).to(device)
 
@@ -279,10 +266,9 @@ def main():
         root_dir="data/preprocessed/",
         labels_file=labels_file,
         transform=transform,
-        limit=3000,  # Adjust limit as needed
+        limit=3000,
         seq_len=seq_len
     )
-
     if len(dataset) == 0:
         print("Error: No valid samples found in the dataset.")
         return
@@ -316,10 +302,7 @@ def main():
     train_size = len(dataset) - test_size
     train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
 
-    # Data Loaders
-    batch_size = 32 # Batch Size [Default is 32]
-
-    # Load Train Data (70%)
+    batch_size = 32
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=batch_size,
@@ -328,8 +311,6 @@ def main():
         pin_memory=False,
         drop_last=True
     )
-
-    # Load Test Data (30%)
     test_dataloader = DataLoader(
         test_dataset,
         batch_size=batch_size,
@@ -339,15 +320,12 @@ def main():
         drop_last=True
     )
 
-    # Create chain graph for seq_len nodes
+    # Create base chain graph for one sequence (seq_len nodes)
     edge_list = []
     for i in range(seq_len - 1):
         edge_list.append([i, i + 1])
         edge_list.append([i + 1, i])
-    edge_index = torch.tensor(edge_list, dtype=torch.long).t().contiguous().to(device)
-
-    # Precompute batched_edge_index once
-    batched_edge_index = create_batched_edge_index(edge_index, batch_size, seq_len, device)
+    base_edge_index = torch.tensor(edge_list, dtype=torch.long).t().contiguous().to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-5)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
@@ -358,50 +336,45 @@ def main():
         verbose=True
     )
 
-    num_epochs = 20 # Number of Epochs [Defaul is 20]
+    num_epochs = 20
     best_auc = 0.0
 
     print("Starting training...")
     for epoch in range(num_epochs):
         start_time = time.time()
 
-        # Epoch Training
         train_loss, train_acc, train_auc, train_f1, train_recall, train_frr, train_gar, train_precision = train_epoch(
-            model, train_dataloader, criterion, optimizer, device, batched_edge_index, grad_clip=5.0
+            model, train_dataloader, criterion, optimizer, device, base_edge_index, seq_len, grad_clip=5.0
         )
-
-        # Epoch Evaluation 
         val_loss, val_acc, val_auc, val_f1, val_recall, val_frr, val_gar, val_precision = evaluate_model(
-            model, test_dataloader, criterion, device, batched_edge_index
+            model, test_dataloader, criterion, device, base_edge_index, seq_len
         )
-
         scheduler.step(val_auc)
-
         epoch_time = time.time() - start_time
         
         results = {
-            'Epoch': epoch+1,  # Current epoch number
+            'Epoch': epoch+1,
             'Training': {
-                'Training Loss': train_loss,  
-                'Training Accuracy': train_acc, 
-                'Training AUC': train_auc, 
-                'Training F1-Score': train_f1,  
-                'Training Recall': train_recall,  
-                'Training FRR': train_frr,  
-                'Training GAR': train_gar,  
-                'Training Precision': train_precision  
+                'Training Loss': train_loss,
+                'Training Accuracy': train_acc,
+                'Training AUC': train_auc,
+                'Training F1-Score': train_f1,
+                'Training Recall': train_recall,
+                'Training FRR': train_frr,
+                'Training GAR': train_gar,
+                'Training Precision': train_precision
             },
             'Testing': {
-                'Val Loss': val_loss,  
-                'Val Accuracy': val_acc,  
-                'Val AUC': val_auc,  
-                'Val F1-Score': val_f1, 
-                'Val Recall': val_recall, 
-                'Val FRR': val_frr,  
-                'Val GAR': val_gar, 
-                'Val Precision': val_precision  
+                'Val Loss': val_loss,
+                'Val Accuracy': val_acc,
+                'Val AUC': val_auc,
+                'Val F1-Score': val_f1,
+                'Val Recall': val_recall,
+                'Val FRR': val_frr,
+                'Val GAR': val_gar,
+                'Val Precision': val_precision
             },
-            'Epoch Time': epoch_time  # Duration of the epoch in seconds
+            'Epoch Time': epoch_time
         }
 
         save_model_and_result(
