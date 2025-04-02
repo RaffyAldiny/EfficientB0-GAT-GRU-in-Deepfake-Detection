@@ -76,12 +76,10 @@ def get_augmentation_pipelines():
         A.ReplayCompose([
             A.HorizontalFlip(p=0.5),
             A.RandomBrightnessContrast(p=0.5),
-            A.Rotate(limit=15, p=0.5),
-            A.GaussNoise(var_limit=(10.0, 50.0), p=0.3),
             A.MotionBlur(blur_limit=5, p=0.2),
             A.CLAHE(clip_limit=2.0, tile_grid_size=(8,8), p=0.3),
         ]),
-        A.ReplayCompose([
+        """ A.ReplayCompose([
             A.VerticalFlip(p=0.3),
             A.RandomGamma(p=0.5),
             A.ElasticTransform(alpha=1.0, sigma=50.0, p=0.3),
@@ -96,7 +94,7 @@ def get_augmentation_pipelines():
             A.ToGray(p=0.2),
             A.RandomScale(scale_limit=0.1, p=0.3),
             A.GaussianBlur(blur_limit=(3, 5), p=0.2),
-        ]),
+        ]),"""
     ]
     return transforms
 
@@ -337,14 +335,16 @@ def preprocess_dataset():
     fake_video_ratio = 0.1579  # For example, 25% of all fake videos
 
     input_folders = [
-        "data/Celeb-real",
-        "data/Celeb-synthesis",
-        "data/YouTube-real"
+        "data/Sample-real",
+       # "data/Celeb-real",
+       # "data/Celeb-synthesis",
+       # "data/YouTube-real"
     ]
     output_folders = [
-        "data/preprocessed/Celeb-real",
-        "data/preprocessed/Celeb-synthesis",
-        "data/preprocessed/YouTube-real"
+       "data/preprocessed/Sample-real",
+       # "data/preprocessed/Celeb-real",
+       #  "data/preprocessed/Celeb-synthesis",
+       # "data/preprocessed/YouTube-real"
     ]
 
     target_fps = 8

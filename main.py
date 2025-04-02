@@ -33,7 +33,7 @@ def create_batched_edge_index(base_edge_index, batch_size, num_nodes, device):
     """
     Create a batched edge index for the graph attention network dynamically
     based on the current batch size.
-
+    
     Args:
         base_edge_index (torch.Tensor): Edge index for a single sequence (chain graph).
         batch_size (int): Actual batch size.
@@ -70,7 +70,7 @@ class DeepfakeModel(nn.Module):
     
     Improvements:
       - A temporal attention layer is added to weight all GRU timesteps.
-      - Dropout rate reduced to 0.3 (adjustable) to mitigate underfitting.
+      - Dropout rate reduced to 0.3 to mitigate underfitting.
     """
     def __init__(self, seq_len=40, dropout_rate=0.3):
         super(DeepfakeModel, self).__init__()
@@ -80,7 +80,7 @@ class DeepfakeModel(nn.Module):
         self.projection = nn.Linear(1280, 256)
         self.gat = GAT(in_channels=256, out_channels=8, heads=1)
         self.gru = GRU(input_size=8, hidden_size=32, num_layers=1, dropout=dropout_rate)
-        # Temporal attention layer: maps GRU hidden states (32) to a scalar.
+        # Temporal attention: maps GRU hidden states (32) to a scalar score.
         self.attention = nn.Linear(32, 1)
         self.fc = nn.Linear(32, 1)
 
@@ -96,8 +96,8 @@ class DeepfakeModel(nn.Module):
         # Process temporal sequence with GRU.
         gru_output = self.gru(gat_output)  # Shape: [batch_size, seq_len, 32]
         # Apply temporal attention.
-        attn_scores = self.attention(gru_output)         # [batch_size, seq_len, 1]
-        attn_weights = torch.softmax(attn_scores, dim=1)    # Normalize over timesteps.
+        attn_scores = self.attention(gru_output)          # [batch_size, seq_len, 1]
+        attn_weights = torch.softmax(attn_scores, dim=1)     # Normalize over timesteps.
         weighted_output = torch.sum(gru_output * attn_weights, dim=1)  # [batch_size, 32]
         output = self.fc(weighted_output)
         return output
@@ -106,7 +106,7 @@ def compute_metrics(labels, preds, probs):
     """
     Compute metrics: Accuracy, F1 (for fake class), AUC, Recall (for fake),
     FRR (for real), GAR, and Precision (for fake).
-
+    
     Metrics are computed globally over the epoch.
     """
     accuracy = accuracy_score(labels, preds)
@@ -135,7 +135,7 @@ def train_epoch(model, dataloader, criterion, optimizer, device, base_edge_index
     Train the model for one epoch.
     
     Improvement:
-      - Collect predictions and labels across the entire epoch and compute metrics once.
+      - Collect predictions and labels across the entire epoch and compute metrics globally.
     """
     model.train()
     epoch_loss = 0.0
@@ -167,7 +167,7 @@ def train_epoch(model, dataloader, criterion, optimizer, device, base_edge_index
             pbar.set_postfix({'Loss': f"{loss.item():.4f}"})
             pbar.update(1)
 
-    # Compute metrics globally.
+    # Compute epoch-level metrics.
     all_labels = np.array(all_labels)
     all_probs = np.array(all_probs)
     all_preds = (all_probs > 0.5).astype(int)
@@ -223,6 +223,7 @@ def evaluate_model(model, dataloader, criterion, device, base_edge_index, seq_le
 def save_model_and_result(model, results, model_path, results_path):
     """
     Save model state and training results to disk.
+    Additionally, save the model as both .pt and .pth files.
     """
     model_dir = os.path.dirname(model_path)
     results_dir = os.path.dirname(results_path)
@@ -234,6 +235,10 @@ def save_model_and_result(model, results, model_path, results_path):
     try:
         torch.save(model.state_dict(), model_path)
         print(f"Model saved to {model_path}")
+        # Also save as a .pth file.
+        pth_model_path = model_path.replace(".pt", ".pth")
+        torch.save(model.state_dict(), pth_model_path)
+        print(f"Model also saved to {pth_model_path}")
     except Exception as e:
         print(f"Error saving model: {e}")
     try:
@@ -255,7 +260,7 @@ def main():
         print("Preprocessed data found. Proceeding to training.")
 
     seq_len = 40
-    dropout_rate = 0.3  # Reduced dropout rate for less aggressive regularization.
+    dropout_rate = 0.3  # Reduced dropout for less aggressive regularization.
     model = DeepfakeModel(seq_len=seq_len, dropout_rate=dropout_rate).to(device)
 
     transform = Compose([
@@ -281,7 +286,7 @@ def main():
     else:
         print(f"Number of samples in the dataset: {len(dataset)}")
 
-    # Use GroupShuffleSplit for group-aware splitting (celebrity IDs).
+    # Use GroupShuffleSplit for group-aware splitting based on celebrity IDs.
     from sklearn.model_selection import GroupShuffleSplit
     groups = [item[2] for item in dataset.labels]  # celeb_id is the third element.
     gss = GroupShuffleSplit(n_splits=1, test_size=0.3, random_state=42)
@@ -383,9 +388,9 @@ def main():
         }
 
         save_model_and_result(
-            model,
-            results,
-            model_path=f"outputs/models/epoch-{epoch+1}-model.pt",
+            model, 
+            results, 
+            model_path=f"outputs/models/epoch-{epoch+1}-model.pt", 
             results_path=f"outputs/results/epoch-{epoch+1}-model.json"
         )
 
