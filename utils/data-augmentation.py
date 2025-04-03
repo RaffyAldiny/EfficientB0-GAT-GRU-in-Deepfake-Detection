@@ -85,10 +85,8 @@ def visualize_augmentation(image_path, augmentation_name, augmentation_pipeline)
 
 def run_test():
     """
-    Run a test for Data
+    Runs a test to view the image augmentation technique using Pyplot.
     
-    Returns:
-    - Augmented image (NumPy array).
     """
     augmentations = get_augmentation_pipelines()
     image_folder = "data/Sample-real/id0_0000"  # Folder containing frames
