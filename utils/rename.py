@@ -2,7 +2,7 @@ import os
 
 def rename_folders(base_dir):
     # Starting ID
-    start_id = 63
+    start_id = 62
     suffix = "_0000"
     
     # Get a sorted list of folders in the specified directory

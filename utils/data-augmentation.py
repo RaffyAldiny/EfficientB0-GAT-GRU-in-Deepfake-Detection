@@ -33,7 +33,6 @@ def get_augmentation_pipelines():
         ("Blur & Grayscale Transformation", A.ReplayCompose([
             A.GaussianBlur(blur_limit=(8, 9), p=0.5),
             A.ToGray(p=1.0),
-            A.RandomScale(scale_limit=0.1, p=0.3),
         ])),
     ]
     return transforms

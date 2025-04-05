@@ -1,3 +1,4 @@
+#utils/preprocess.py
 import os
 import random
 import cv2
@@ -71,31 +72,39 @@ def resize_with_padding(frame, target_size=(224, 224)):
 def get_augmentation_pipelines():
     """
     Define augmentation pipelines using ReplayCompose.
+    Each pipeline applies different augmentation techniques to improve model generalization.
     """
+    
     transforms = [
+        # 1 -  COLOR & LIGHTING ADJUSTMENT AUGMENTATION
         A.ReplayCompose([
-            A.HorizontalFlip(p=0.5),
-            A.RandomBrightnessContrast(p=0.5),
-            A.MotionBlur(blur_limit=5, p=0.2),
-            A.CLAHE(clip_limit=2.0, tile_grid_size=(8,8), p=0.3),
+            A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),  # Adjust brightness & contrast
+            A.HueSaturationValue(hue_shift_limit=10, sat_shift_limit=15, val_shift_limit=15, p=0.5),  # Slight color shift
+            A.GaussNoise(p=0.3),  # Add random noise
+            A.MotionBlur(blur_limit=3, p=0.2),  # Motion blur for slight camera shake effect
+            A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=0.3),  # Contrast enhancement
+            A.ImageCompression(quality_lower=60, quality_upper=90, p=0.3),  # Simulate compression artifacts)
         ]),
-        """ A.ReplayCompose([
-            A.VerticalFlip(p=0.3),
-            A.RandomGamma(p=0.5),
-            A.ElasticTransform(alpha=1.0, sigma=50.0, p=0.3),
-            A.MedianBlur(blur_limit=3, p=0.2),
-            A.RandomResizedCrop(height=224, width=224, scale=(0.8, 1.0), ratio=(0.9, 1.1), p=0.3),
-            A.Sharpen(alpha=(0.0, 0.3), lightness=(0.75, 1.5), p=0.3),
-        ]),
+        """
+        # 2 -  SHARPNESS & DETAIL VARIATION AUGMENTATION
         A.ReplayCompose([
-            A.RandomSizedCrop(min_max_height=(200, 220), height=224, width=224, p=0.5),
-            A.Blur(blur_limit=3, p=0.2),
-            A.HueSaturationValue(p=0.5),
-            A.ToGray(p=0.2),
-            A.RandomScale(scale_limit=0.1, p=0.3),
-            A.GaussianBlur(blur_limit=(3, 5), p=0.2),
+            A.RandomGamma(gamma_limit=(80, 120), p=0.5),  # Simulate exposure changes
+            A.GaussianBlur(blur_limit=(1, 3), p=0.3),  # Slight blurring effect
+            A.Sharpen(alpha=(0.1, 0.3), lightness=(0.9, 1.2), p=0.3),  # Sharpness variation
+            A.ToGray(p=0.2),  # Convert some frames to grayscale
+            A.ImageCompression(quality_lower=50, quality_upper=85, p=0.3),  # Apply compression effects
+        ]),
+
+        # 3 - SUBTLE BLUR & NOISE AUGMENTATION
+        A.ReplayCompose([
+            A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=10, val_shift_limit=10, p=0.5),  # Small color shifts
+            A.Blur(blur_limit=3, p=0.2),  # Apply mild blur
+            A.GaussNoise(p=0.3),  # Light noise addition
+            A.RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1, p=0.5),  # Subtle brightness variation
+   
         ]),"""
     ]
+    
     return transforms
 
 def preprocess_video(args):
@@ -137,6 +146,7 @@ def preprocess_video(args):
 
         augmentation_pipelines = get_augmentation_pipelines()
         selected_transform = random.choice(augmentation_pipelines)
+        print(selected_transform)
         try:
             # Apply augmentation once to get replay params
             sample_frame = np.zeros((224, 224, 3), dtype=np.uint8)
