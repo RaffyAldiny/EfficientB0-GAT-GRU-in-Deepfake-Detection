@@ -13,7 +13,7 @@ def get_augmentation_pipelines():
         ("Noise & Contrast Enhancement", A.ReplayCompose([
             A.RandomBrightnessContrast(p=0.75),
             A.GaussNoise(std_range=(0.02, 0.06), p=1.0),
-            A.MotionBlur(blur_limit=(3, 7), p=0.25),  # ensure odd limits
+            A.MotionBlur(blur_limit=(3, 7), p=0.25),
             A.CLAHE(clip_limit=1.5, tile_grid_size=(8,8), p=1.0),
         ])),
         ("Color & Sharpness Adjustment", A.ReplayCompose([
@@ -69,7 +69,7 @@ def augment_folder_frames(in_folder, pipeline, out_folder):
 def main():
     random.seed(42)
 
-    # --- Locate Training folder (80/20 split must be done already) ---
+    # Locate Training folder
     script_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = os.path.normpath(
         os.path.join(script_dir, "..", "data", "Final-data", "Training")
@@ -81,7 +81,7 @@ def main():
     pipelines  = get_augmentation_pipelines()
     categories = ["Celeb-real", "Celeb-synthesis"]
 
-    # --- Gather all video-folder names per class (ignore existing aug folders) ---
+    # Gather original video-folder names per class
     vids = {}
     for cat in categories:
         cat_path = os.path.join(base_dir, cat)
@@ -91,47 +91,97 @@ def main():
             and not d.endswith("_data-augmented")
         ]
 
-    augmented_folders = []
+    # Prepare occurrence counter and record of new folders + aug type
+    occurrence = { (cat, vid): 0 for cat in categories for vid in vids[cat] }
+    augmented_records = []  # will hold "relative_path | augmentation_name"
 
-    # --- For each class, augment exactly 25% of its folders once ---
+    # Phase 1: augment 25% of each class
+    phase1_counts = {}
     for cat in categories:
         folder_list = vids[cat]
         orig_count  = len(folder_list)
         if orig_count == 0:
-            print(f"[!] No folders in `{cat}`, skipping.")
+            phase1_counts[cat] = 0
             continue
 
-        # compute how many to augment: at least 1, at most orig_count
         aug_needed = max(1, int(orig_count * 0.25))
         aug_needed = min(aug_needed, orig_count)
-
-        # sample unique folders to augment
         picks = random.sample(folder_list, aug_needed)
-        print(f"Augmenting {len(picks)}/{orig_count} folders in `{cat}` (25%)")
+        phase1_counts[cat] = len(picks)
 
-        # perform augmentation
+        print(f"[Phase 1] Augmenting {len(picks)}/{orig_count} folders in `{cat}` (25%)")
         for vid in picks:
+            occurrence[(cat, vid)] += 1
+            cnt = occurrence[(cat, vid)]
+            suffix = "_data-augmented" if cnt == 1 else f"_data-augmented_{cnt}"
             in_folder  = os.path.join(base_dir, cat, vid)
-            out_folder = os.path.join(base_dir, cat, vid + "_data-augmented")
+            out_folder = os.path.join(base_dir, cat, vid + suffix)
 
             if os.path.exists(out_folder):
                 print(f"  [!] Skipping existing: {out_folder}")
                 continue
 
             aug_name, aug_pipe = random.choice(pipelines)
-            print(f"  → [{cat}] {vid}_data-augmented  |  {aug_name}")
+            print(f"  → [{cat}] {vid}{suffix}  |  {aug_name}")
             augment_folder_frames(in_folder, aug_pipe, out_folder)
-            # record the new folder name relative to base_dir
-            rel_path = os.path.join(cat, vid + "_data-augmented")
-            augmented_folders.append(rel_path)
 
-    # --- Write out list of augmented folders ---
-    if augmented_folders:
+            rel_path = os.path.join(cat, vid + suffix)
+            augmented_records.append(f"{rel_path} | {aug_name}")
+
+    # Compute new class sizes
+    new_counts = {
+        cat: len(vids[cat]) + phase1_counts.get(cat, 0)
+        for cat in categories
+    }
+    print(f"\nPost‑Phase 1 counts: {new_counts}")
+
+    # Phase 2: balance minority to majority
+    real_count = new_counts["Celeb-real"]
+    fake_count = new_counts["Celeb-synthesis"]
+    if fake_count < real_count:
+        minority = "Celeb-synthesis"
+        disparity = real_count - fake_count
+    else:
+        minority = "Celeb-real"
+        disparity = fake_count - real_count
+
+    if disparity <= 0:
+        print("Already balanced after Phase 1; no further augmentation needed.")
+    else:
+        minority_list = vids[minority]
+        orig_min = len(minority_list)
+        if disparity > orig_min:
+            print(f"[Phase 2] Need {disparity} but only {orig_min} unique folders; augmenting each once.")
+            picks_min = minority_list[:]
+        else:
+            picks_min = random.sample(minority_list, disparity)
+
+        print(f"[Phase 2] Augmenting {len(picks_min)}/{orig_min} folders in `{minority}` to balance")
+        for vid in picks_min:
+            occurrence[(minority, vid)] += 1
+            cnt = occurrence[(minority, vid)]
+            suffix = "_data-augmented" if cnt == 1 else f"_data-augmented_{cnt}"
+            in_folder  = os.path.join(base_dir, minority, vid)
+            out_folder = os.path.join(base_dir, minority, vid + suffix)
+
+            if os.path.exists(out_folder):
+                print(f"  [!] Skipping existing: {out_folder}")
+                continue
+
+            aug_name, aug_pipe = random.choice(pipelines)
+            print(f"  → [{minority}] {vid}{suffix}  |  {aug_name}")
+            augment_folder_frames(in_folder, aug_pipe, out_folder)
+
+            rel_path = os.path.join(minority, vid + suffix)
+            augmented_records.append(f"{rel_path} | {aug_name}")
+
+    # Write out list of all augmented folders and their pipeline names
+    if augmented_records:
         txt_path = os.path.join(base_dir, "augmented_folders.txt")
         with open(txt_path, "w") as f:
-            for line in augmented_folders:
-                f.write(line + "\n")
-        print(f"\nWrote list of augmented folders to: {txt_path}")
+            for record in augmented_records:
+                f.write(record + "\n")
+        print(f"\nWrote list of augmented folders and pipelines to: {txt_path}")
 
 if __name__ == "__main__":
     main()
