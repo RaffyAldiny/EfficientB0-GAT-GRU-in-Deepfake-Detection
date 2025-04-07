@@ -12,8 +12,8 @@ def get_augmentation_pipelines():
     return [
         ("Noise & Contrast Enhancement", A.ReplayCompose([
             A.RandomBrightnessContrast(p=0.75),
-            A.GaussNoise(std_range=(0.02, 0.06), p=1.0),
-            A.MotionBlur(blur_limit=(3, 7), p=0.25),
+            A.GaussNoise(std_range=(0.02, 0.05), p=1.0),
+            A.MotionBlur(blur_limit=(3, 6), p=0.25),
             A.CLAHE(clip_limit=1.5, tile_grid_size=(8,8), p=1.0),
         ])),
         ("Color & Sharpness Adjustment", A.ReplayCompose([
@@ -36,7 +36,17 @@ def get_augmentation_pipelines():
             A.RandomScale(scale_limit=0.15, p=0.4),
         ])),
         ("JPEG Compression", A.ReplayCompose([
-            A.ImageCompression(quality_lower=20, quality_upper=30, p=0.5),
+            A.ImageCompression(quality_lower=5, quality_upper=20, p=0.5),
+        ])),
+        ("Sensor Noise", A.ReplayCompose([
+            A.MotionBlur(blur_limit=(2, 3), p=0.2),
+            A.ISONoise(color_shift=(0.01, 0.03), intensity=(0.1, 0.25), p=1.0),
+            A.CLAHE(clip_limit=1, tile_grid_size=(8,8), p=0.4),
+        ])),
+        ("Edge Analysis", A.ReplayCompose([
+            A.Emboss(alpha=(0.08, 0.15), strength=(1, 1), p=1.0),
+            A.RandomBrightnessContrast(contrast_limit=(0.1, 0.2), p=0.6),
+            A.CLAHE(clip_limit=1, p=0.5)
         ])),
     ]
 
@@ -53,14 +63,14 @@ def augment_folder_frames(in_folder, pipeline, out_folder):
 
     os.makedirs(out_folder, exist_ok=True)
 
-    # first frame: generate augmentation + record params
+    # First frame: generate augmentation + record params
     fp0 = os.path.join(in_folder, frames[0])
     img0 = np.array(Image.open(fp0).convert("RGB"))
     res0 = pipeline(image=img0)
     aug0, replay = res0["image"], res0["replay"]
     Image.fromarray(aug0).save(os.path.join(out_folder, frames[0]))
 
-    # replay same params on remaining frames
+    # Replay the same parameters on remaining frames
     for fname in frames[1:]:
         img = np.array(Image.open(os.path.join(in_folder, fname)).convert("RGB"))
         res = pipeline.replay(replay, image=img)
@@ -91,11 +101,11 @@ def main():
             and not d.endswith("_data-augmented")
         ]
 
-    # Prepare occurrence counter and record of new folders + aug type
+    # Prepare occurrence counter and record of new folders + augmentation type
     occurrence = { (cat, vid): 0 for cat in categories for vid in vids[cat] }
     augmented_records = []  # will hold "relative_path | augmentation_name"
 
-    # Phase 1: augment 25% of each class
+    # Phase 1: augment 25% of each class
     phase1_counts = {}
     for cat in categories:
         folder_list = vids[cat]
@@ -109,7 +119,7 @@ def main():
         picks = random.sample(folder_list, aug_needed)
         phase1_counts[cat] = len(picks)
 
-        print(f"[Phase 1] Augmenting {len(picks)}/{orig_count} folders in `{cat}` (25%)")
+        print(f"[Phase 1] Augmenting {len(picks)}/{orig_count} folders in `{cat}` (25%)")
         for vid in picks:
             occurrence[(cat, vid)] += 1
             cnt = occurrence[(cat, vid)]
@@ -128,14 +138,14 @@ def main():
             rel_path = os.path.join(cat, vid + suffix)
             augmented_records.append(f"{rel_path} | {aug_name}")
 
-    # Compute new class sizes
+    # Compute new class sizes (for logging only)
     new_counts = {
         cat: len(vids[cat]) + phase1_counts.get(cat, 0)
         for cat in categories
     }
-    print(f"\nPost‑Phase 1 counts: {new_counts}")
+    print(f"\nPost‑Phase 1 counts: {new_counts}")
 
-    # Phase 2: balance minority to majority
+    # Phase 2: balance minority to majority, but only use folders that were not augmented yet.
     real_count = new_counts["Celeb-real"]
     fake_count = new_counts["Celeb-synthesis"]
     if fake_count < real_count:
@@ -146,34 +156,38 @@ def main():
         disparity = fake_count - real_count
 
     if disparity <= 0:
-        print("Already balanced after Phase 1; no further augmentation needed.")
+        print("Already balanced after Phase 1; no further augmentation needed.")
     else:
-        minority_list = vids[minority]
+        # Only pick folders that have not been augmented (occurrence == 0)
+        minority_list = [vid for vid in vids[minority] if occurrence[(minority, vid)] == 0]
         orig_min = len(minority_list)
-        if disparity > orig_min:
-            print(f"[Phase 2] Need {disparity} but only {orig_min} unique folders; augmenting each once.")
-            picks_min = minority_list[:]
+        if orig_min == 0:
+            print(f"All folders in {minority} have been augmented; cannot augment uniquely.")
         else:
-            picks_min = random.sample(minority_list, disparity)
+            if disparity > orig_min:
+                print(f"[Phase 2] Need {disparity} but only {orig_min} unique folders; augmenting each once.")
+                picks_min = minority_list[:]
+            else:
+                picks_min = random.sample(minority_list, disparity)
 
-        print(f"[Phase 2] Augmenting {len(picks_min)}/{orig_min} folders in `{minority}` to balance")
-        for vid in picks_min:
-            occurrence[(minority, vid)] += 1
-            cnt = occurrence[(minority, vid)]
-            suffix = "_data-augmented" if cnt == 1 else f"_data-augmented_{cnt}"
-            in_folder  = os.path.join(base_dir, minority, vid)
-            out_folder = os.path.join(base_dir, minority, vid + suffix)
+            print(f"[Phase 2] Augmenting {len(picks_min)}/{orig_min} folders in `{minority}` to balance")
+            for vid in picks_min:
+                occurrence[(minority, vid)] += 1
+                cnt = occurrence[(minority, vid)]
+                suffix = "_data-augmented" if cnt == 1 else f"_data-augmented_{cnt}"
+                in_folder  = os.path.join(base_dir, minority, vid)
+                out_folder = os.path.join(base_dir, minority, vid + suffix)
 
-            if os.path.exists(out_folder):
-                print(f"  [!] Skipping existing: {out_folder}")
-                continue
+                if os.path.exists(out_folder):
+                    print(f"  [!] Skipping existing: {out_folder}")
+                    continue
 
-            aug_name, aug_pipe = random.choice(pipelines)
-            print(f"  → [{minority}] {vid}{suffix}  |  {aug_name}")
-            augment_folder_frames(in_folder, aug_pipe, out_folder)
+                aug_name, aug_pipe = random.choice(pipelines)
+                print(f"  → [{minority}] {vid}{suffix}  |  {aug_name}")
+                augment_folder_frames(in_folder, aug_pipe, out_folder)
 
-            rel_path = os.path.join(minority, vid + suffix)
-            augmented_records.append(f"{rel_path} | {aug_name}")
+                rel_path = os.path.join(minority, vid + suffix)
+                augmented_records.append(f"{rel_path} | {aug_name}")
 
     # Write out list of all augmented folders and their pipeline names
     if augmented_records:

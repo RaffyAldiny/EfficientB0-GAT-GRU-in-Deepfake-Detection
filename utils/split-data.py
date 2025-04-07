@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#utils/split-data.py
 import os
 import shutil
 import random

@@ -1,24 +1,22 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, Subset
-from torchvision.transforms import Compose, ToTensor, Resize
+from torch.utils.data import DataLoader
+from torchvision.transforms import Compose, Resize, ToTensor
 from models.efficientnet import get_efficientnet
 from models.gat import GAT
 from models.gru import GRU
 from utils.dataset import DeepfakeDataset
-from utils.losses import CombinedLoss  # Use the revised losses code
+from utils.losses import CombinedLoss
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
-from sklearn.model_selection import GroupShuffleSplit  # For group-aware splitting
-import os
-import time
-from tqdm import tqdm
-import random
 import numpy as np
+import random
+import time
+import os
 import json
+from tqdm import tqdm
 
 def set_seed(seed=42):
-    """Set the random seed for reproducibility."""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -28,28 +26,6 @@ def set_seed(seed=42):
 set_seed(42)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
-
-def create_batched_edge_index(base_edge_index, batch_size, num_nodes, device):
-    """
-    Create a batched edge index for the graph attention network dynamically
-    based on the current batch size.
-    
-    Args:
-        base_edge_index (torch.Tensor): Edge index for a single sequence (chain graph).
-        batch_size (int): Actual batch size.
-        num_nodes (int): Number of nodes per sequence (seq_len).
-        device (torch.device): Device to place the tensor.
-        
-    Returns:
-        torch.Tensor: Batched edge index.
-    """
-    edge_index = base_edge_index.clone()
-    edge_index = edge_index.repeat(1, batch_size)
-    offsets = torch.arange(batch_size, device=device) * num_nodes
-    num_edges_per_sample = base_edge_index.size(1)
-    offsets = offsets.unsqueeze(0).repeat(2, num_edges_per_sample)
-    edge_index += offsets
-    return edge_index
 
 def create_chain_graph(seq_len: int) -> torch.Tensor:
     """
@@ -63,6 +39,27 @@ def create_chain_graph(seq_len: int) -> torch.Tensor:
     for i in range(seq_len - 1):
         edge_list.extend([[i, i+1], [i+1, i]])
     return torch.tensor(edge_list, dtype=torch.long).t().contiguous()
+
+def create_batched_edge_index(base_edge_index, batch_size, num_nodes, device):
+    """
+    Create a batched edge index for the graph attention network dynamically
+    based on the current batch size.
+    
+    Args:
+        base_edge_index (torch.Tensor): Edge index for a single sequence.
+        batch_size (int): Actual batch size.
+        num_nodes (int): Number of nodes per sequence (seq_len).
+        device (torch.device): Device to place the tensor.
+        
+    Returns:
+        torch.Tensor: Batched edge index.
+    """
+    edge_index = base_edge_index.clone().repeat(1, batch_size)
+    offsets = torch.arange(batch_size, device=device) * num_nodes
+    num_edges_per_sample = base_edge_index.size(1)
+    offsets = offsets.unsqueeze(0).repeat(2, num_edges_per_sample)
+    edge_index += offsets
+    return edge_index
 
 class DeepfakeModel(nn.Module):
     """
@@ -79,6 +76,7 @@ class DeepfakeModel(nn.Module):
         # Projection: from 1280 to 256.
         self.projection = nn.Linear(1280, 256)
         self.gat = GAT(in_channels=256, out_channels=8, heads=1)
+        # Use updated GRU that returns only the output tensor.
         self.gru = GRU(input_size=8, hidden_size=32, num_layers=1, dropout=dropout_rate)
         # Temporal attention: maps GRU hidden states (32) to a scalar score.
         self.attention = nn.Linear(32, 1)
@@ -94,7 +92,7 @@ class DeepfakeModel(nn.Module):
         gat_output = self.gat(projected_features, batched_edge_index)
         gat_output = gat_output.view(batch_size, seq_len, -1)
         # Process temporal sequence with GRU.
-        gru_output = self.gru(gat_output)  # Shape: [batch_size, seq_len, 32]
+        gru_output = self.gru(gat_output)  # [batch_size, seq_len, 32]
         # Apply temporal attention.
         attn_scores = self.attention(gru_output)          # [batch_size, seq_len, 1]
         attn_weights = torch.softmax(attn_scores, dim=1)     # Normalize over timesteps.
@@ -250,15 +248,6 @@ def save_model_and_result(model, results, model_path, results_path):
 
 def main():
     """Main function to train and evaluate the deepfake detection model."""
-    preprocessed_dir = "data/preprocessed/"
-    required_subdirs = ["Celeb-real", "Celeb-synthesis", "Youtube-real"]
-    missing_subdirs = [sub for sub in required_subdirs if not os.path.exists(os.path.join(preprocessed_dir, sub))]
-    if missing_subdirs:
-        print(f"Error: Preprocessed directories missing: {missing_subdirs}. Please run the preprocessing script first.")
-        print("Missing directory but proceeding to process")
-    else:
-        print("Preprocessed data found. Proceeding to training.")
-
     seq_len = 40
     dropout_rate = 0.3  # Reduced dropout for less aggressive regularization.
     model = DeepfakeModel(seq_len=seq_len, dropout_rate=dropout_rate).to(device)
@@ -268,47 +257,26 @@ def main():
         ToTensor()
     ])
 
-    labels_file = "data/List_of_testing_videos.txt"
-    if not os.path.exists(labels_file):
-        print(f"Error: Labels file not found at {labels_file}")
-        return
-
-    dataset = DeepfakeDataset(
-        root_dir="data/preprocessed/",
-        labels_file=labels_file,
+    # Load datasets directly from pre-split folders.
+    train_dataset = DeepfakeDataset(
+        root_dir="data/Final-data/Training",
         transform=transform,
-        limit=3000,
         seq_len=seq_len
     )
-    if len(dataset) == 0:
-        print("Error: No valid samples found in the dataset.")
-        return
-    else:
-        print(f"Number of samples in the dataset: {len(dataset)}")
+    test_dataset = DeepfakeDataset(
+        root_dir="data/Final-data/Testing",
+        transform=transform,
+        seq_len=seq_len
+    )
+    print(f"Train samples: {len(train_dataset)}, Test samples: {len(test_dataset)}")
 
-    # Use GroupShuffleSplit for group-aware splitting based on celebrity IDs.
-    from sklearn.model_selection import GroupShuffleSplit
-    groups = [item[2] for item in dataset.labels]  # celeb_id is the third element.
-    gss = GroupShuffleSplit(n_splits=1, test_size=0.3, random_state=42)
-    train_idx, test_idx = next(gss.split(dataset, groups=groups))
-    
-    # Verify no overlapping groups between train and test.
-    train_celebs = {dataset.labels[i][2] for i in train_idx}
-    test_celebs = {dataset.labels[i][2] for i in test_idx}
-    assert len(train_celebs & test_celebs) == 0, "Data leakage detected: overlapping celebrity IDs!"
-    print(f"Train groups: {len(train_celebs)}, Test groups: {len(test_celebs)}")
-
-    from torch.utils.data import Subset
-    train_dataset = Subset(dataset, train_idx)
-    test_dataset = Subset(dataset, test_idx)
-
-    # Recompute pos_weight based on the training subset.
-    train_labels = [dataset.labels[i][0] for i in train_idx]  # label is the first element.
+    # Recompute pos_weight from the training set (after any augmentation).
+    train_labels = [sample[0] for sample in train_dataset.labels]
     num_pos = sum(train_labels)
     num_neg = len(train_labels) - num_pos
     ratio = num_neg / num_pos if num_pos > 0 else 1.0
     pos_weight = torch.tensor([ratio], dtype=torch.float32).to(device)
-    print(f"Computed pos_weight (from train subset): {pos_weight.item():.4f}")
+    print(f"Computed pos_weight (from training set): {pos_weight.item():.4f}")
 
     criterion = CombinedLoss(
         bce_weight=0.5,
@@ -322,7 +290,7 @@ def main():
         batch_size=batch_size,
         shuffle=True,
         num_workers=2,
-        pin_memory=True,  # pin_memory=True is safe on CPU-only systems.
+        pin_memory=True,
         drop_last=True
     )
     test_dataloader = DataLoader(
