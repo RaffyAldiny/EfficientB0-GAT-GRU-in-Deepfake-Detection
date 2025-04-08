@@ -2,12 +2,12 @@ albumentations==2.0.5
 facenet_pytorch==2.6.0
 matplotlib==3.10.1
 mediapipe==0.10.21
-numpy==2.2.4
+numpy>=1.24.4,<2.0.0
 opencv_contrib_python==4.11.0.86
 opencv_python==4.10.0.84
 opencv_python_headless==4.10.0.84
 pandas==2.2.3
-Pillow==11.1.0
+Pillow==10.2.0
 scikit_learn==1.6.1
 seaborn==0.13.2
 torch==2.2.2

@@ -29,7 +29,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Base output directory for saving results to Google Drive
-drive_output_dir = "/outputs"
+drive_output_dir = "/content/drive/MyDrive/Deepfake-Thesis/outputs"
 
 # Get current date in YYYYMMDD format for file naming
 current_date = datetime.now().strftime("%Y%m%d")
@@ -223,12 +223,12 @@ def main():
     
     # Assume data is in local ephemeral storage
     train_dataset = DeepfakeDataset(
-        root_dir="/data/Final-data/Training",
+        root_dir="/content/Deepfake-Thesis/data/Final-data/Training",
         transform=transform,
         seq_len=seq_len
     )
     test_dataset = DeepfakeDataset(
-        root_dir="/data/Final-data/Testing",
+        root_dir="/content/Deepfake-Thesis/data/Final-data/Testing",
         transform=transform,
         seq_len=seq_len
     )
