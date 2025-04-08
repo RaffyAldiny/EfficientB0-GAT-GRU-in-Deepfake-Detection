@@ -249,7 +249,7 @@ def save_model_and_result(model, results, model_path, results_path):
 def main():
     """Main function to train and evaluate the deepfake detection model."""
     seq_len = 40
-    dropout_rate = 0.3  # Reduced dropout for less aggressive regularization.
+    dropout_rate = 0.25  # Reduced dropout for less aggressive regularization.
     model = DeepfakeModel(seq_len=seq_len, dropout_rate=dropout_rate).to(device)
 
     transform = Compose([
@@ -279,8 +279,8 @@ def main():
     print(f"Computed pos_weight (from training set): {pos_weight.item():.4f}")
 
     criterion = CombinedLoss(
-        bce_weight=0.5,
-        jsd_weight=0.5,
+        bce_weight=0.6,
+        jsd_weight=0.4,
         pos_weight=pos_weight
     )
 
@@ -289,7 +289,7 @@ def main():
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=2,
+        num_workers=8,
         pin_memory=True,
         drop_last=True
     )
@@ -297,7 +297,7 @@ def main():
         test_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=2,
+        num_workers=8,
         pin_memory=True,
         drop_last=True
     )
@@ -358,8 +358,8 @@ def main():
         save_model_and_result(
             model, 
             results, 
-            model_path=f"outputs/models/epoch-{epoch+1}-model.pt", 
-            results_path=f"outputs/results/epoch-{epoch+1}-model.json"
+            model_path=f"outputs/models/epoch-{epoch+1}-efficientgatgru-v1.pt", 
+            results_path=f"outputs/results/epoch-{epoch+1}-efficientgatgru-v1.json"
         )
 
         print(f"\nEpoch {epoch+1}/{num_epochs} Summary:")
@@ -370,7 +370,7 @@ def main():
         if val_auc > best_auc:
             best_auc = val_auc
             os.makedirs("outputs", exist_ok=True)
-            torch.save(model.state_dict(), f"outputs/best_deepfake_model_epoch_{epoch+1}.pt")
+            torch.save(model.state_dict(), f"outputs/best_efficientgatgru-v1_model_epoch_{epoch+1}.pt")
             print("Best model updated and saved.")
 
     print("Training completed. Saving final model...")

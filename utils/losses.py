@@ -46,7 +46,7 @@ class CombinedLoss(nn.Module):
     def __init__(self, bce_weight: float = 0.7, 
                  jsd_weight: float = 0.3, 
                  pos_weight: torch.Tensor = None, 
-                 jsd_grad_factor: float = 0.3):
+                 jsd_grad_factor: float = 0.2):
         super().__init__()
         self.bce_weight = bce_weight
         self.jsd_weight = jsd_weight
