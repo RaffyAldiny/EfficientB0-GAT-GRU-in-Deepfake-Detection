@@ -29,7 +29,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Base output directory for saving results to Google Drive
-drive_output_dir = "/content/drive/MyDrive/Deepfake-Thesis/EfficientNetGatGru-MoreDropout-CosineAnnealing-0.5JS"
+drive_output_dir = "/content/drive/MyDrive/Deepfake-Thesis/EfficientNetGatGru-MoreDropout-GRU32"
 
 # Get current date in YYYYMMDD format for file naming
 current_date = datetime.now().strftime("%Y%m%d")
@@ -70,10 +70,8 @@ def compute_metrics(labels, preds, probs):
 
     return accuracy, f1, auc, recall_fake, FRR, GAR, precision_fake
 
-
-
 class DeepfakeModel(nn.Module):
-    def __init__(self, seq_len=40, dropout_rate=0.5):  # Increased dropout rate
+    def __init__(self, seq_len=40, dropout_rate=0.5):  # Increased dropout rate already incorporated
         super(DeepfakeModel, self).__init__()
         self.seq_len = seq_len
         self.efficientnet = get_efficientnet()
@@ -82,29 +80,29 @@ class DeepfakeModel(nn.Module):
         self.projection = nn.Sequential(
             nn.Linear(1280, 64),
             nn.GELU(),
-            nn.Dropout(dropout_rate),  # New dropout layer
+            nn.Dropout(dropout_rate),
             nn.Linear(64, 4)
         )
         
         # GAT layer (assuming GAT implementation exists)
         self.gat = GAT(in_channels=4, out_channels=4, heads=1)
         
-        # GRU layer with dropout
+        # GRU layer with increased hidden size (from 16 to 32) and dropout
         self.gru = GRU(
             input_size=4, 
-            hidden_size=16, 
+            hidden_size=32,  # Increased hidden size
             num_layers=1, 
             dropout=dropout_rate
         )
         
-        # Attention layer with dropout
+        # Attention layer updated to match the new GRU hidden dimension (32)
         self.attention = nn.Sequential(
-            nn.Linear(16, 1),
-            nn.Dropout(dropout_rate)  # New dropout layer
+            nn.Linear(32, 1),
+            nn.Dropout(dropout_rate)
         )
         
-        # Final fully connected layer
-        self.fc = nn.Linear(16, 1)
+        # Final fully connected layer updated to match GRU output dimension
+        self.fc = nn.Linear(32, 1)
 
     def forward(self, x, batched_edge_index):
         batch_size, seq_len, c, h, w = x.shape
@@ -120,7 +118,7 @@ class DeepfakeModel(nn.Module):
         gat_output = self.gat(projected_features, batched_edge_index)
         gat_output = gat_output.view(batch_size, seq_len, -1)
         
-        # GRU processing
+        # GRU processing (now outputs dimension 32)
         gru_output = self.gru(gat_output)
         
         # Attention mechanism with dropout
@@ -171,7 +169,6 @@ def train_epoch(model, dataloader, criterion, optimizer, device, base_edge_index
     )
     average_loss = epoch_loss / len(dataloader)
     
-    # Clear unused memory from the GPU
     torch.cuda.empty_cache()
     
     return average_loss, epoch_acc, epoch_auc, epoch_f1, epoch_recall, epoch_frr, epoch_gar, epoch_precision

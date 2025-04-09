@@ -29,7 +29,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Base output directory for saving results to Google Drive
-drive_output_dir = "/content/drive/MyDrive/Deepfake-Thesis/EfficientNetGatGru-MoreDropout-CosineAnnealing-0.5JS"
+drive_output_dir = "/content/drive/MyDrive/Deepfake-Thesis/EfficientNetGatGru-LessParameters"
 
 # Get current date in YYYYMMDD format for file naming
 current_date = datetime.now().strftime("%Y%m%d")
@@ -73,62 +73,45 @@ def compute_metrics(labels, preds, probs):
 
 
 class DeepfakeModel(nn.Module):
-    def __init__(self, seq_len=40, dropout_rate=0.5):  # Increased dropout rate
+    def __init__(self, seq_len=40, dropout_rate=0.4):
         super(DeepfakeModel, self).__init__()
         self.seq_len = seq_len
         self.efficientnet = get_efficientnet()
-        
-        # Revised projection with dropout
+        # Revised projection: compress from 1280 → 64 → 4 with nonlinearity.
         self.projection = nn.Sequential(
             nn.Linear(1280, 64),
             nn.GELU(),
-            nn.Dropout(dropout_rate),  # New dropout layer
             nn.Linear(64, 4)
         )
-        
-        # GAT layer (assuming GAT implementation exists)
+        # Update GAT to accept input dimension 4.
         self.gat = GAT(in_channels=4, out_channels=4, heads=1)
-        
-        # GRU layer with dropout
-        self.gru = GRU(
-            input_size=4, 
-            hidden_size=16, 
-            num_layers=1, 
-            dropout=dropout_rate
-        )
-        
-        # Attention layer with dropout
-        self.attention = nn.Sequential(
-            nn.Linear(16, 1),
-            nn.Dropout(dropout_rate)  # New dropout layer
-        )
-        
-        # Final fully connected layer
+        # With the new projection, the output from GAT is 4 (or 4×heads, here still 4).
+        # Thus, the GRU now takes input_size=4.
+        self.gru = GRU(input_size=4, hidden_size=16, num_layers=1, dropout=dropout_rate)
+        # GRU output is assumed to have dimension 16.
+        self.attention = nn.Linear(16, 1)
         self.fc = nn.Linear(16, 1)
 
     def forward(self, x, batched_edge_index):
         batch_size, seq_len, c, h, w = x.shape
+        # Flatten the batch and sequence dimensions.
         x = x.view(batch_size * seq_len, c, h, w)
-        
-        # EfficientNet feature extraction
+        # Extract spatial features from EfficientNet.
         spatial_features = self.efficientnet(x).squeeze(-1).squeeze(-1)
-        
-        # Projection with dropout
+        # Project the 1280-D features into a 4-D space via the nonlinear sequential block.
         projected_features = self.projection(spatial_features)
-        
-        # GAT processing
+        # Process the projected features through GAT.
         gat_output = self.gat(projected_features, batched_edge_index)
+        # Reshape GAT output to (batch_size, seq_len, feature_dim)
         gat_output = gat_output.view(batch_size, seq_len, -1)
-        
-        # GRU processing
+        # Pass through the GRU (which now expects input of size 4).
         gru_output = self.gru(gat_output)
-        
-        # Attention mechanism with dropout
+        # Compute attention scores from the GRU output.
         attn_scores = self.attention(gru_output)
         attn_weights = torch.softmax(attn_scores, dim=1)
+        # Generate a weighted representation of the GRU output.
         weighted_output = torch.sum(gru_output * attn_weights, dim=1)
-        
-        # Final prediction
+        # Produce final output.
         output = self.fc(weighted_output)
         return output
 
@@ -250,7 +233,7 @@ def save_model_and_result(model, results, model_filename, results_filename):
 
 def main():
     seq_len = 40
-    dropout_rate = 0.5
+    dropout_rate = 0.4
     model = DeepfakeModel(seq_len=seq_len, dropout_rate=dropout_rate).to(device)
 
     transform = Compose([
@@ -284,12 +267,12 @@ def main():
         pos_weight=pos_weight
     )
 
-    batch_size = 8
+    batch_size = 16
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=4,  # Reduced to avoid overloading memory
+        num_workers=2,  # Reduced to avoid overloading memory
         pin_memory=True,
         drop_last=True
     )
@@ -297,15 +280,21 @@ def main():
         test_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=4,  # Reduced as well
+        num_workers=2,  # Reduced as well
         pin_memory=True,
         drop_last=True
     )
 
     base_edge_index = create_chain_graph(seq_len).to(device)
     
-    optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10)
+    optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-5)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        mode='min',
+        factor=0.5,
+        patience=3,
+        verbose=True
+    )
 
     num_epochs = 20
     best_auc = 0.0

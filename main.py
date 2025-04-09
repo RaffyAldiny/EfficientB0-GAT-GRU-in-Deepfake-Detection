@@ -49,7 +49,7 @@ def create_batched_edge_index(base_edge_index, batch_size, num_nodes, device):
     return edge_index
 
 class DeepfakeModel(nn.Module):
-    def __init__(self, seq_len=40, dropout_rate=0.3):
+    def __init__(self, seq_len=40, dropout_rate=0.4):
         super(DeepfakeModel, self).__init__()
         self.seq_len = seq_len
         self.efficientnet = get_efficientnet()
@@ -213,7 +213,7 @@ def save_model_and_result(model, results, model_filename, results_filename):
 
 def main():
     seq_len = 40
-    dropout_rate = 0.25
+    dropout_rate = 0.4
     model = DeepfakeModel(seq_len=seq_len, dropout_rate=dropout_rate).to(device)
 
     transform = Compose([
