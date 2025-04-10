@@ -50,9 +50,9 @@ def split_identities(class_dir: str, train_ratio=0.8, seed=42):
 def main():
     # Paths
     source_root = "data/process-merge"
-    output_root = "data/Split-data"
+    output_root = "data/Final-data"
     classes     = ["Celeb-real", "Celeb-synthesis"]
-    train_ratio = 0.8
+    train_ratio = 0.7
     seed        = 42
 
     # 1) Create target directories

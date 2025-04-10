@@ -119,7 +119,7 @@ def main():
         picks = random.sample(folder_list, aug_needed)
         phase1_counts[cat] = len(picks)
 
-        print(f"[Phase 1] Augmenting {len(picks)}/{orig_count} folders in `{cat}` (25%)")
+        print(f"[Phase 1] Augmenting {len(picks)}/{orig_count} folders in `{cat}` (50%)")
         for vid in picks:
             occurrence[(cat, vid)] += 1
             cnt = occurrence[(cat, vid)]
