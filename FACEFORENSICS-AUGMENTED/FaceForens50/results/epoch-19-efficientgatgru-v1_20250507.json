@@ -1,0 +1,24 @@
+{
+    "Epoch": 19,
+    "Training": {
+        "Training Loss": 0.3836079823970795,
+        "Training Accuracy": 0.81,
+        "Training AUC": 0.8864117900736879,
+        "Training F1-Score": 0.7984084880636605,
+        "Training Recall": 0.7506234413965087,
+        "Training FRR": 0.13032581453634084,
+        "Training GAR": 0.8696741854636592,
+        "Training Precision": 0.8526912181303116
+    },
+    "Testing": {
+        "Val Loss": 0.3754013280073802,
+        "Val Accuracy": 0.8020833333333334,
+        "Val AUC": 0.8850652271704902,
+        "Val F1-Score": 0.8333333333333334,
+        "Val Recall": 0.8333333333333334,
+        "Val FRR": 0.24358974358974358,
+        "Val GAR": 0.7564102564102564,
+        "Val Precision": 0.8333333333333334
+    },
+    "Epoch Time": 49.371116399765015
+}

@@ -1,0 +1,482 @@
+[
+  {
+    "Epoch": 1,
+    "Training": {
+      "Training Loss": 0.4938410991503869,
+      "Training Accuracy": 0.5914351851851852,
+      "Training AUC": 0.6525488564052735,
+      "Training F1-Score": 0.6598136845486668,
+      "Training Recall": 0.7924382716049383,
+      "Training FRR": 0.6095679012345679,
+      "Training GAR": 0.39043209876543206,
+      "Training Precision": 0.5652173913043478
+    },
+    "Testing": {
+      "Val Loss": 0.4640381537204565,
+      "Val Accuracy": 0.6482558139534884,
+      "Val AUC": 0.7935741864313293,
+      "Val F1-Score": 0.431924882629108,
+      "Val Recall": 0.3108108108108108,
+      "Val FRR": 0.09693877551020408,
+      "Val GAR": 0.903061224489796,
+      "Val Precision": 0.7076923076923077
+    },
+    "Epoch Time": 124.4819848537445
+  },
+  {
+    "Epoch": 2,
+    "Training": {
+      "Training Loss": 0.4525922503736284,
+      "Training Accuracy": 0.6875,
+      "Training AUC": 0.750820277265921,
+      "Training F1-Score": 0.6680327868852459,
+      "Training Recall": 0.6293436293436293,
+      "Training FRR": 0.2544333076329992,
+      "Training GAR": 0.7455666923670008,
+      "Training Precision": 0.7117903930131004
+    },
+    "Testing": {
+      "Val Loss": 0.4069326111050539,
+      "Val Accuracy": 0.7383720930232558,
+      "Val AUC": 0.8271511307225592,
+      "Val F1-Score": 0.7151898734177216,
+      "Val Recall": 0.7635135135135135,
+      "Val FRR": 0.28061224489795916,
+      "Val GAR": 0.7193877551020409,
+      "Val Precision": 0.6726190476190477
+    },
+    "Epoch Time": 122.35731935501099
+  },
+  {
+    "Epoch": 3,
+    "Training": {
+      "Training Loss": 0.4144685404536165,
+      "Training Accuracy": 0.7179783950617284,
+      "Training AUC": 0.7905359263878926,
+      "Training F1-Score": 0.716556804963164,
+      "Training Recall": 0.7124132613723978,
+      "Training FRR": 0.27644787644787644,
+      "Training GAR": 0.7235521235521236,
+      "Training Precision": 0.7207488299531981
+    },
+    "Testing": {
+      "Val Loss": 0.39485622041447216,
+      "Val Accuracy": 0.7354651162790697,
+      "Val AUC": 0.8086734693877552,
+      "Val F1-Score": 0.7035830618892508,
+      "Val Recall": 0.7297297297297297,
+      "Val FRR": 0.2602040816326531,
+      "Val GAR": 0.7397959183673469,
+      "Val Precision": 0.6792452830188679
+    },
+    "Epoch Time": 122.3632447719574
+  },
+  {
+    "Epoch": 4,
+    "Training": {
+      "Training Loss": 0.39173380846594585,
+      "Training Accuracy": 0.7318672839506173,
+      "Training AUC": 0.8103982162578924,
+      "Training F1-Score": 0.7271299568119356,
+      "Training Recall": 0.7139552814186585,
+      "Training FRR": 0.2501930501930502,
+      "Training GAR": 0.7498069498069497,
+      "Training Precision": 0.7408
+    },
+    "Testing": {
+      "Val Loss": 0.3642657835816228,
+      "Val Accuracy": 0.747093023255814,
+      "Val AUC": 0.8402164920022063,
+      "Val F1-Score": 0.6836363636363636,
+      "Val Recall": 0.6351351351351351,
+      "Val FRR": 0.1683673469387755,
+      "Val GAR": 0.8316326530612245,
+      "Val Precision": 0.7401574803149606
+    },
+    "Epoch Time": 122.33705759048462
+  },
+  {
+    "Epoch": 5,
+    "Training": {
+      "Training Loss": 0.37621847112421636,
+      "Training Accuracy": 0.748070987654321,
+      "Training AUC": 0.8260056489236801,
+      "Training F1-Score": 0.7434184675834971,
+      "Training Recall": 0.7310664605873262,
+      "Training FRR": 0.2349768875192604,
+      "Training GAR": 0.7650231124807396,
+      "Training Precision": 0.7561950439648282
+    },
+    "Testing": {
+      "Val Loss": 0.36648295993028684,
+      "Val Accuracy": 0.747093023255814,
+      "Val AUC": 0.8330805295091009,
+      "Val F1-Score": 0.6836363636363636,
+      "Val Recall": 0.6351351351351351,
+      "Val FRR": 0.1683673469387755,
+      "Val GAR": 0.8316326530612245,
+      "Val Precision": 0.7401574803149606
+    },
+    "Epoch Time": 121.95471978187561
+  },
+  {
+    "Epoch": 6,
+    "Training": {
+      "Training Loss": 0.3638589242818179,
+      "Training Accuracy": 0.751929012345679,
+      "Training AUC": 0.8375639655516295,
+      "Training F1-Score": 0.7451446690447879,
+      "Training Recall": 0.7247494217424827,
+      "Training FRR": 0.22084942084942086,
+      "Training GAR": 0.7791505791505792,
+      "Training Precision": 0.766721044045677
+    },
+    "Testing": {
+      "Val Loss": 0.36749594156132187,
+      "Val Accuracy": 0.7441860465116279,
+      "Val AUC": 0.828323221180364,
+      "Val F1-Score": 0.7066666666666667,
+      "Val Recall": 0.7162162162162162,
+      "Val FRR": 0.23469387755102042,
+      "Val GAR": 0.7653061224489796,
+      "Val Precision": 0.6973684210526315
+    },
+    "Epoch Time": 122.0690848827362
+  },
+  {
+    "Epoch": 7,
+    "Training": {
+      "Training Loss": 0.3482336385842459,
+      "Training Accuracy": 0.7654320987654321,
+      "Training AUC": 0.8533458917892942,
+      "Training F1-Score": 0.7583465818759937,
+      "Training Recall": 0.7349768875192604,
+      "Training FRR": 0.20401854714064915,
+      "Training GAR": 0.7959814528593508,
+      "Training Precision": 0.7832512315270936
+    },
+    "Testing": {
+      "Val Loss": 0.35104169713896377,
+      "Val Accuracy": 0.7412790697674418,
+      "Val AUC": 0.8478350799779372,
+      "Val F1-Score": 0.7138263665594855,
+      "Val Recall": 0.75,
+      "Val FRR": 0.2653061224489796,
+      "Val GAR": 0.7346938775510203,
+      "Val Precision": 0.6809815950920245
+    },
+    "Epoch Time": 122.19151878356934
+  },
+  {
+    "Epoch": 8,
+    "Training": {
+      "Training Loss": 0.33263222376505536,
+      "Training Accuracy": 0.7824074074074074,
+      "Training AUC": 0.8681084653328294,
+      "Training F1-Score": 0.7756563245823389,
+      "Training Recall": 0.752895752895753,
+      "Training FRR": 0.18812644564379338,
+      "Training GAR": 0.8118735543562066,
+      "Training Precision": 0.7998359310910582
+    },
+    "Testing": {
+      "Val Loss": 0.33324990213610406,
+      "Val Accuracy": 0.7732558139534884,
+      "Val AUC": 0.8661059018201875,
+      "Val F1-Score": 0.7450980392156863,
+      "Val Recall": 0.7702702702702703,
+      "Val FRR": 0.22448979591836735,
+      "Val GAR": 0.7755102040816326,
+      "Val Precision": 0.7215189873417721
+    },
+    "Epoch Time": 122.29458212852478
+  },
+  {
+    "Epoch": 9,
+    "Training": {
+      "Training Loss": 0.33914582585387026,
+      "Training Accuracy": 0.7727623456790124,
+      "Training AUC": 0.8586968688081085,
+      "Training F1-Score": 0.767836026803311,
+      "Training Recall": 0.7515432098765432,
+      "Training FRR": 0.20601851851851852,
+      "Training GAR": 0.7939814814814815,
+      "Training Precision": 0.7848509266720387
+    },
+    "Testing": {
+      "Val Loss": 0.3483801520494528,
+      "Val Accuracy": 0.7703488372093024,
+      "Val AUC": 0.8486969111969113,
+      "Val F1-Score": 0.7375415282392026,
+      "Val Recall": 0.75,
+      "Val FRR": 0.21428571428571427,
+      "Val GAR": 0.7857142857142857,
+      "Val Precision": 0.7254901960784313
+    },
+    "Epoch Time": 122.33746886253357
+  },
+  {
+    "Epoch": 10,
+    "Training": {
+      "Training Loss": 0.334811380845897,
+      "Training Accuracy": 0.7797067901234568,
+      "Training AUC": 0.8628608341792613,
+      "Training F1-Score": 0.7761662093296746,
+      "Training Recall": 0.7632999228989977,
+      "Training FRR": 0.20386100386100386,
+      "Training GAR": 0.7961389961389962,
+      "Training Precision": 0.7894736842105263
+    },
+    "Testing": {
+      "Val Loss": 0.34128167757461236,
+      "Val Accuracy": 0.7761627906976745,
+      "Val AUC": 0.8527302813017098,
+      "Val F1-Score": 0.7279151943462897,
+      "Val Recall": 0.6959459459459459,
+      "Val FRR": 0.16326530612244897,
+      "Val GAR": 0.8367346938775511,
+      "Val Precision": 0.762962962962963
+    },
+    "Epoch Time": 122.11805486679077
+  },
+  {
+    "Epoch": 11,
+    "Training": {
+      "Training Loss": 0.30945067197360376,
+      "Training Accuracy": 0.7986111111111112,
+      "Training AUC": 0.8855398409754618,
+      "Training F1-Score": 0.7946498819826908,
+      "Training Recall": 0.7787201233616037,
+      "Training FRR": 0.18146718146718147,
+      "Training GAR": 0.8185328185328186,
+      "Training Precision": 0.8112449799196787
+    },
+    "Testing": {
+      "Val Loss": 0.3721490235522736,
+      "Val Accuracy": 0.7441860465116279,
+      "Val AUC": 0.8315637065637066,
+      "Val F1-Score": 0.7197452229299363,
+      "Val Recall": 0.7635135135135135,
+      "Val FRR": 0.27040816326530615,
+      "Val GAR": 0.7295918367346939,
+      "Val Precision": 0.6807228915662651
+    },
+    "Epoch Time": 122.44598412513733
+  },
+  {
+    "Epoch": 12,
+    "Training": {
+      "Training Loss": 0.306170649504588,
+      "Training Accuracy": 0.8059413580246914,
+      "Training AUC": 0.8880302926563528,
+      "Training F1-Score": 0.8060161974546857,
+      "Training Recall": 0.8057054741711642,
+      "Training FRR": 0.19382239382239383,
+      "Training GAR": 0.8061776061776061,
+      "Training Precision": 0.8063271604938271
+    },
+    "Testing": {
+      "Val Loss": 0.36736241771384726,
+      "Val Accuracy": 0.7558139534883721,
+      "Val AUC": 0.8415264754550469,
+      "Val F1-Score": 0.7272727272727273,
+      "Val Recall": 0.7567567567567568,
+      "Val FRR": 0.24489795918367346,
+      "Val GAR": 0.7551020408163265,
+      "Val Precision": 0.7
+    },
+    "Epoch Time": 122.29514479637146
+  },
+  {
+    "Epoch": 13,
+    "Training": {
+      "Training Loss": 0.3117404758102364,
+      "Training Accuracy": 0.7989969135802469,
+      "Training AUC": 0.8818854320781846,
+      "Training F1-Score": 0.7936633663366337,
+      "Training Recall": 0.7737451737451737,
+      "Training FRR": 0.17579028527370855,
+      "Training GAR": 0.8242097147262915,
+      "Training Precision": 0.8146341463414634
+    },
+    "Testing": {
+      "Val Loss": 0.36146432074696516,
+      "Val Accuracy": 0.75,
+      "Val AUC": 0.8450772200772201,
+      "Val F1-Score": 0.7074829931972789,
+      "Val Recall": 0.7027027027027027,
+      "Val FRR": 0.21428571428571427,
+      "Val GAR": 0.7857142857142857,
+      "Val Precision": 0.7123287671232876
+    },
+    "Epoch Time": 122.28873443603516
+  },
+  {
+    "Epoch": 14,
+    "Training": {
+      "Training Loss": 0.3122388898498482,
+      "Training Accuracy": 0.7893518518518519,
+      "Training AUC": 0.8808721046192134,
+      "Training F1-Score": 0.7848699763593381,
+      "Training Recall": 0.7691119691119691,
+      "Training FRR": 0.19043947571318426,
+      "Training GAR": 0.8095605242868158,
+      "Training Precision": 0.8012872083668544
+    },
+    "Testing": {
+      "Val Loss": 0.3502806522991768,
+      "Val Accuracy": 0.7616279069767442,
+      "Val AUC": 0.8627275234418091,
+      "Val F1-Score": 0.740506329113924,
+      "Val Recall": 0.7905405405405406,
+      "Val FRR": 0.2602040816326531,
+      "Val GAR": 0.7397959183673469,
+      "Val Precision": 0.6964285714285714
+    },
+    "Epoch Time": 122.08272290229797
+  },
+  {
+    "Epoch": 15,
+    "Training": {
+      "Training Loss": 0.30244649742028595,
+      "Training Accuracy": 0.8094135802469136,
+      "Training AUC": 0.8900391518061271,
+      "Training F1-Score": 0.8068803752931978,
+      "Training Recall": 0.7962962962962963,
+      "Training FRR": 0.17746913580246915,
+      "Training GAR": 0.8225308641975309,
+      "Training Precision": 0.8177496038034865
+    },
+    "Testing": {
+      "Val Loss": 0.3583886949128883,
+      "Val Accuracy": 0.7441860465116279,
+      "Val AUC": 0.8469043022614451,
+      "Val F1-Score": 0.6986301369863014,
+      "Val Recall": 0.6891891891891891,
+      "Val FRR": 0.21428571428571427,
+      "Val GAR": 0.7857142857142857,
+      "Val Precision": 0.7083333333333334
+    },
+    "Epoch Time": 122.36124801635742
+  },
+  {
+    "Epoch": 16,
+    "Training": {
+      "Training Loss": 0.31128304456303146,
+      "Training Accuracy": 0.7928240740740741,
+      "Training AUC": 0.8816371608969912,
+      "Training F1-Score": 0.7898238747553816,
+      "Training Recall": 0.7791505791505792,
+      "Training FRR": 0.19352351580570548,
+      "Training GAR": 0.8064764841942945,
+      "Training Precision": 0.8007936507936508
+    },
+    "Testing": {
+      "Val Loss": 0.3701415545372076,
+      "Val Accuracy": 0.75,
+      "Val AUC": 0.8371483728626586,
+      "Val F1-Score": 0.7189542483660131,
+      "Val Recall": 0.7432432432432432,
+      "Val FRR": 0.24489795918367346,
+      "Val GAR": 0.7551020408163265,
+      "Val Precision": 0.6962025316455697
+    },
+    "Epoch Time": 122.03288960456848
+  },
+  {
+    "Epoch": 17,
+    "Training": {
+      "Training Loss": 0.3027195852525808,
+      "Training Accuracy": 0.8020833333333334,
+      "Training AUC": 0.8894021014327085,
+      "Training F1-Score": 0.7987446057277363,
+      "Training Recall": 0.7854938271604939,
+      "Training FRR": 0.18132716049382716,
+      "Training GAR": 0.8186728395061729,
+      "Training Precision": 0.8124501197126895
+    },
+    "Testing": {
+      "Val Loss": 0.3888762682503046,
+      "Val Accuracy": 0.7296511627906976,
+      "Val AUC": 0.8324944842801986,
+      "Val F1-Score": 0.7138461538461538,
+      "Val Recall": 0.7837837837837838,
+      "Val FRR": 0.3112244897959184,
+      "Val GAR": 0.6887755102040816,
+      "Val Precision": 0.655367231638418
+    },
+    "Epoch Time": 122.13579416275024
+  },
+  {
+    "Epoch": 18,
+    "Training": {
+      "Training Loss": 0.2976349334427972,
+      "Training Accuracy": 0.8067129629629629,
+      "Training AUC": 0.8931166409465021,
+      "Training F1-Score": 0.8029885961462839,
+      "Training Recall": 0.7878086419753086,
+      "Training FRR": 0.1743827160493827,
+      "Training GAR": 0.8256172839506173,
+      "Training Precision": 0.8187650360866079
+    },
+    "Testing": {
+      "Val Loss": 0.4024807157558064,
+      "Val Accuracy": 0.7412790697674418,
+      "Val AUC": 0.8183604522890238,
+      "Val F1-Score": 0.7100977198697068,
+      "Val Recall": 0.7364864864864865,
+      "Val FRR": 0.25510204081632654,
+      "Val GAR": 0.7448979591836735,
+      "Val Precision": 0.6855345911949685
+    },
+    "Epoch Time": 122.28779768943787
+  },
+  {
+    "Epoch": 19,
+    "Training": {
+      "Training Loss": 0.30445069047035994,
+      "Training Accuracy": 0.8036265432098766,
+      "Training AUC": 0.8863537856271909,
+      "Training F1-Score": 0.7980959936533122,
+      "Training Recall": 0.7762345679012346,
+      "Training FRR": 0.16898148148148148,
+      "Training GAR": 0.8310185185185185,
+      "Training Precision": 0.8212244897959183
+    },
+    "Testing": {
+      "Val Loss": 0.34903031760870024,
+      "Val Accuracy": 0.752906976744186,
+      "Val AUC": 0.8576254826254827,
+      "Val F1-Score": 0.6953405017921147,
+      "Val Recall": 0.6554054054054054,
+      "Val FRR": 0.17346938775510204,
+      "Val GAR": 0.826530612244898,
+      "Val Precision": 0.7404580152671756
+    },
+    "Epoch Time": 122.13196396827698
+  },
+  {
+    "Epoch": 20,
+    "Training": {
+      "Training Loss": 0.304179131179864,
+      "Training Accuracy": 0.8013117283950617,
+      "Training AUC": 0.8872331532921811,
+      "Training F1-Score": 0.7962010288880095,
+      "Training Recall": 0.7762345679012346,
+      "Training FRR": 0.1736111111111111,
+      "Training GAR": 0.8263888888888888,
+      "Training Precision": 0.8172217709179529
+    },
+    "Testing": {
+      "Val Loss": 0.3866081728145134,
+      "Val Accuracy": 0.7412790697674418,
+      "Val AUC": 0.8257377275234419,
+      "Val F1-Score": 0.6941580756013745,
+      "Val Recall": 0.6824324324324325,
+      "Val FRR": 0.21428571428571427,
+      "Val GAR": 0.7857142857142857,
+      "Val Precision": 0.7062937062937062
+    },
+    "Epoch Time": 122.06873416900635
+  }
+]
